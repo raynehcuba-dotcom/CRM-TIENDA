@@ -236,26 +236,26 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
   return (
     <section
       aria-labelledby="restock-priority-heading"
-      className="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/40"
+      className="bg-white rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] overflow-hidden"
       id="restock-priority-summary"
     >
       {/* Notification Header */}
       <div
-        className={`px-space-lg py-space-md flex flex-col lg:flex-row lg:items-center justify-between gap-space-md ${
+        className={`px-6 py-4 border-b border-[#E8EEF7] flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
           summary.criticalCount > 0
-            ? 'bg-error-container/25'
+            ? 'bg-red-50/70'
             : summary.totalAlerts > 0
-              ? 'bg-amber-50'
-              : 'bg-surface-container-low'
+              ? 'bg-amber-50/70'
+              : 'bg-[#F8FAFF]'
         }`}
       >
-        <div className="flex items-start sm:items-center gap-space-sm min-w-0">
+        <div className="flex items-start sm:items-center gap-3 min-w-0">
           <div
             className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
               summary.criticalCount > 0
-                ? 'bg-error text-on-error'
+                ? 'bg-red-600 text-white'
                 : summary.totalAlerts > 0
-                  ? 'bg-amber-700 text-white'
+                  ? 'bg-amber-600 text-white'
                   : 'bg-[#ecfdf5] text-[#065f46]'
             }`}
           >
@@ -264,19 +264,19 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
             </span>
           </div>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-space-sm gap-y-0.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <h2
-                className="font-headline-sm text-headline-sm text-on-surface"
+                className="font-headline-sm text-headline-sm text-[#182034] font-bold"
                 id="restock-priority-heading"
               >
                 Prioridades de Reposición de Inventario
               </h2>
-              <span className="font-code-mono text-label-sm text-on-surface-variant tabular-nums">
+              <span className="font-code-mono text-label-sm text-[#64748B] tabular-nums">
                 · {summary.totalAlerts}{' '}
                 {summary.totalAlerts === 1 ? 'artículo bajo umbral' : 'artículos bajo umbral'}
               </span>
             </div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant tabular-nums mt-0.5">
+            <p className="font-label-sm text-label-sm text-[#64748B] tabular-nums mt-0.5">
               {loading
                 ? 'Calculando existencias y umbrales desde SQLite...'
                 : summary.totalAlerts === 0
@@ -287,16 +287,16 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
         </div>
 
         {/* Controls */}
-        <div className="flex flex-wrap items-center gap-space-sm shrink-0">
-          <div className="flex items-center gap-space-xs bg-surface-container-lowest px-space-sm h-9 rounded-lg border border-outline-variant/40">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 bg-white px-3 h-9 rounded-xl border border-[#E8EEF7]">
             <label
-              className="font-label-sm text-label-sm text-on-surface-variant whitespace-nowrap"
+              className="font-label-sm text-label-sm text-[#64748B] whitespace-nowrap"
               htmlFor="dash-threshold-mode"
             >
               Umbral:
             </label>
             <select
-              className="bg-transparent font-label-sm text-label-sm text-on-surface focus:outline-none cursor-pointer"
+              className="bg-transparent font-label-sm text-label-sm text-[#182034] font-semibold focus:outline-none cursor-pointer"
               id="dash-threshold-mode"
               onChange={(e) => updateThreshold(e.target.value as ThresholdMode, fixedThreshold)}
               value={thresholdMode}
@@ -305,10 +305,10 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
               <option value="fixed">Mínimo global definido</option>
             </select>
             {thresholdMode === 'fixed' && (
-              <div className="flex items-center gap-1 pl-1 border-l border-outline-variant/40">
+              <div className="flex items-center gap-1 pl-2 border-l border-[#E8EEF7]">
                 <input
                   aria-label="Mínimo global definido en dashboard"
-                  className="w-14 h-7 px-1.5 rounded bg-surface-container-low text-on-surface font-code-mono tabular-nums text-label-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-14 h-7 px-1.5 rounded-lg bg-[#F8FAFF] border border-[#E8EEF7] text-[#182034] font-code-mono tabular-nums text-label-sm text-right focus:outline-none focus:ring-2 focus:ring-[#0E4BFF]/25"
                   min={0}
                   onChange={(e) => {
                     const val = Number(e.target.value);
@@ -317,14 +317,14 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
                   type="number"
                   value={fixedThreshold}
                 />
-                <span className="font-code-mono text-[11px] text-on-surface-variant">u.</span>
+                <span className="font-code-mono text-[11px] text-[#64748B]">u.</span>
               </div>
             )}
           </div>
 
           {summary.totalAlerts > 0 && (
             <button
-              className="h-9 px-space-md rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-sm text-label-sm font-semibold border border-outline-variant/40 inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+              className="h-9 px-3.5 rounded-xl bg-white hover:bg-[#F5F7FD] text-[#182034] font-label-sm text-label-sm font-semibold border border-[#E8EEF7] inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
               onClick={() => setCollapsed((prev) => !prev)}
               type="button"
             >
@@ -336,7 +336,15 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
           )}
 
           <a
-            className="h-9 px-space-md rounded-lg bg-primary-container hover:bg-primary text-on-primary font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+            className="h-9 px-3.5 rounded-xl bg-white hover:bg-[#F5F7FD] text-[#182034] font-label-sm text-label-sm font-semibold border border-[#E8EEF7] inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+            href="/reporte-stock-bajo"
+          >
+            <span className="material-symbols-outlined text-[16px]">print</span>
+            <span>Reporte Imprimible</span>
+          </a>
+
+          <a
+            className="h-9 px-4 rounded-xl bg-[#0E4BFF] hover:bg-[#0B3EDB] text-white font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 shadow-[0_4px_12px_rgba(14,75,255,0.22)] transition-colors whitespace-nowrap shrink-0"
             href="/inventario"
           >
             <span>Gestionar Inventario</span>
@@ -348,10 +356,10 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
       {/* Inline Status Notice after Quick Restock */}
       {statusNotice && (
         <div
-          className="px-space-lg py-space-sm bg-[#ecfdf5] text-[#065f46] font-label-sm text-label-sm flex items-center justify-between gap-space-sm border-b border-outline-variant/30"
+          className="px-6 py-2.5 bg-[#ecfdf5] text-[#065f46] font-label-sm text-label-sm flex items-center justify-between gap-2 border-b border-[#a7f3d0]"
           role="status"
         >
-          <div className="flex items-center gap-space-xs">
+          <div className="flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[18px]">check_circle</span>
             <span>{statusNotice}</span>
           </div>
@@ -367,15 +375,15 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
 
       {/* Body */}
       {!collapsed && (
-        <div className="p-space-lg">
+        <div className="p-6">
           {error ? (
-            <div className="p-space-md rounded-lg bg-error-container/30 text-on-surface flex items-center justify-between gap-space-md">
-              <div className="flex items-center gap-space-sm">
-                <span className="material-symbols-outlined text-error text-[20px]">error_outline</span>
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-[#182034] flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-red-600 text-[20px]">error_outline</span>
                 <span className="font-body-md text-body-md">{error}</span>
               </div>
               <button
-                className="px-space-md h-9 rounded-lg bg-error text-on-error font-label-sm text-label-sm font-semibold hover:opacity-90 whitespace-nowrap shrink-0"
+                className="px-4 h-9 rounded-xl bg-red-600 text-white font-label-sm text-label-sm font-semibold hover:opacity-90 whitespace-nowrap shrink-0"
                 onClick={() => void fetchProducts()}
                 type="button"
               >
@@ -383,81 +391,81 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
               </button>
             </div>
           ) : loading ? (
-            <div className="space-y-space-sm">
+            <div className="space-y-2.5">
               {Array.from({ length: 3 }).map((_, idx) => (
                 <div
-                  className="h-12 rounded-lg bg-surface-container-low animate-pulse"
+                  className="h-12 rounded-xl bg-[#F8FAFF] animate-pulse"
                   key={`dash-skel-${idx}`}
                 />
               ))}
             </div>
           ) : prioritizedItems.length === 0 ? (
-            <div className="p-space-md rounded-lg bg-[#ecfdf5] flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
-              <div className="flex items-center gap-space-sm">
+            <div className="p-4 rounded-xl bg-[#ecfdf5] border border-[#a7f3d0] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#065f46] text-[20px]">check_circle</span>
                 <span className="font-body-bold text-body-bold text-[#065f46]">
                   Todos los artículos del inventario se encuentran por encima de su umbral definido.
                 </span>
               </div>
               <a
-                className="font-label-sm text-label-sm font-bold text-primary hover:underline whitespace-nowrap shrink-0"
+                className="font-label-sm text-label-sm font-bold text-[#0E4BFF] hover:underline whitespace-nowrap shrink-0"
                 href="/inventario"
               >
                 Ver catálogo completo →
               </a>
             </div>
           ) : (
-            <div className="flex flex-col gap-space-md">
+            <div className="flex flex-col gap-4">
               {/* Calculated Summary Strip */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-space-sm">
-                <div className="p-space-sm rounded-lg bg-surface-container-low">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant block">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="p-3.5 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7]">
+                  <span className="font-label-sm text-label-sm text-[#64748B] block">
                     Artículos en Alerta
                   </span>
-                  <span className="font-headline-sm text-headline-sm text-on-surface font-bold font-code-mono tabular-nums">
+                  <span className="font-headline-sm text-headline-sm text-[#182034] font-bold font-code-mono tabular-nums">
                     {summary.totalAlerts}
                   </span>
                 </div>
-                <div className="p-space-sm rounded-lg bg-error-container/20">
-                  <span className="font-label-sm text-label-sm text-error font-semibold block">
+                <div className="p-3.5 rounded-xl bg-red-50/70 border border-red-200/70">
+                  <span className="font-label-sm text-label-sm text-red-700 font-semibold block">
                     Sin Existencias (P1)
                   </span>
-                  <span className="font-headline-sm text-headline-sm text-error font-bold font-code-mono tabular-nums">
+                  <span className="font-headline-sm text-headline-sm text-red-700 font-bold font-code-mono tabular-nums">
                     {summary.criticalCount}
                   </span>
                 </div>
-                <div className="p-space-sm rounded-lg bg-surface-container-low">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant block">
+                <div className="p-3.5 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7]">
+                  <span className="font-label-sm text-label-sm text-[#64748B] block">
                     Déficit Total a Reponer
                   </span>
-                  <span className="font-headline-sm text-headline-sm text-on-surface font-bold font-code-mono tabular-nums">
+                  <span className="font-headline-sm text-headline-sm text-[#182034] font-bold font-code-mono tabular-nums">
                     {summary.totalDeficitUnits} u.
                   </span>
                 </div>
-                <div className="p-space-sm rounded-lg bg-surface-container-low">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant block">
+                <div className="p-3.5 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7]">
+                  <span className="font-label-sm text-label-sm text-[#64748B] block">
                     Inversión Mín. Estimada
                   </span>
-                  <span className="font-headline-sm text-headline-sm text-primary font-bold font-code-mono tabular-nums">
+                  <span className="font-headline-sm text-headline-sm text-[#0E4BFF] font-bold font-code-mono tabular-nums">
                     ${formatMoney(summary.totalEstimatedCost)} CUP
                   </span>
                 </div>
               </div>
 
               {/* Prioritized Items Table */}
-              <div className="overflow-x-auto rounded-lg border border-outline-variant/30">
-                <table className="w-full text-left border-collapse" id="restock-priority-table">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-separate border-spacing-y-2" id="restock-priority-table">
                   <thead>
-                    <tr className="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider">
-                      <th className="py-space-sm px-space-md font-semibold">Prioridad</th>
-                      <th className="py-space-sm px-space-md font-semibold">Artículo</th>
-                      <th className="py-space-sm px-space-md font-semibold text-right">Stock / Umbral</th>
-                      <th className="py-space-sm px-space-md font-semibold text-right">Faltante</th>
-                      <th className="py-space-sm px-space-md font-semibold text-right">Costo Est.</th>
-                      <th className="py-space-sm px-space-md font-semibold text-right">Acción</th>
+                    <tr className="text-[#64748B] font-label-sm text-label-sm uppercase tracking-wider">
+                      <th className="py-2 px-4 font-semibold">Prioridad</th>
+                      <th className="py-2 px-4 font-semibold">Artículo</th>
+                      <th className="py-2 px-4 font-semibold text-right">Stock / Umbral</th>
+                      <th className="py-2 px-4 font-semibold text-right">Faltante</th>
+                      <th className="py-2 px-4 font-semibold text-right">Costo Est.</th>
+                      <th className="py-2 px-4 font-semibold text-right">Acción</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-surface-container-low font-body-md text-body-md">
+                  <tbody className="font-body-md text-body-md">
                     {prioritizedItems.map((entry, index) => {
                       const { item, stock, threshold, deficit, coveragePct, estimatedCostCup, tier, tierLabel } =
                         entry;
@@ -467,33 +475,35 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
                       return (
                         <React.Fragment key={item.id}>
                           <tr
-                            className={
+                            className={`transition-colors ${
                               isCritical
-                                ? 'bg-error-container/15 hover:bg-error-container/25 transition-colors'
-                                : 'bg-amber-50/70 hover:bg-amber-100/60 transition-colors'
-                            }
+                                ? 'bg-red-50/75 hover:bg-red-50'
+                                : 'bg-amber-50/70 hover:bg-amber-50'
+                            }`}
                             data-priority-tier={tier}
                           >
-                            <td className="py-space-sm px-space-md align-middle whitespace-nowrap">
+                            <td className="py-3 px-4 align-middle whitespace-nowrap rounded-l-xl border-y border-l border-[#E8EEF7]">
                               <span
-                                className={`inline-flex items-center gap-1 font-label-sm text-label-sm font-semibold tabular-nums ${
-                                  isCritical ? 'text-error' : 'text-amber-900'
+                                className={`inline-flex items-center gap-1.5 font-label-sm text-label-sm font-semibold tabular-nums ${
+                                  isCritical ? 'text-red-700' : 'text-amber-800'
                                 }`}
                               >
-                                <span className="material-symbols-outlined text-[16px]">
-                                  {isCritical ? 'error' : 'warning'}
-                                </span>
+                                <span
+                                  className={`w-2 h-2 rounded-full ${
+                                    isCritical ? 'bg-red-500' : 'bg-amber-500'
+                                  }`}
+                                />
                                 <span>
                                   #{index + 1} · {tierLabel}
                                 </span>
                               </span>
                             </td>
 
-                            <td className="py-space-sm px-space-md align-middle">
-                              <div className="font-body-bold text-body-bold text-on-surface">
+                            <td className="py-3 px-4 align-middle border-y border-[#E8EEF7]">
+                              <div className="font-body-bold text-body-bold text-[#182034]">
                                 {item.descripcion}
                               </div>
-                              <div className="font-label-sm text-label-sm text-on-surface-variant flex flex-wrap items-center gap-1.5">
+                              <div className="font-label-sm text-label-sm text-[#64748B] flex flex-wrap items-center gap-1.5">
                                 <span className="font-code-mono">{item.sku}</span>
                                 <span aria-hidden="true">·</span>
                                 <span>{item.categoria_nombre || 'Sin categoría'}</span>
@@ -502,35 +512,35 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
                               </div>
                             </td>
 
-                            <td className="py-space-sm px-space-md text-right align-middle whitespace-nowrap">
+                            <td className="py-3 px-4 text-right align-middle whitespace-nowrap border-y border-[#E8EEF7]">
                               <div
                                 className={`font-code-mono tabular-nums font-bold ${
-                                  isCritical ? 'text-error' : 'text-amber-900'
+                                  isCritical ? 'text-red-700' : 'text-amber-800'
                                 }`}
                               >
                                 {stock} / {threshold} u.
                               </div>
-                              <div className="w-20 h-1.5 rounded-full bg-surface-container-high ml-auto mt-1 overflow-hidden">
+                              <div className="w-20 h-1.5 rounded-full bg-white/80 border border-[#E8EEF7] ml-auto mt-1 overflow-hidden">
                                 <div
                                   className={`h-full rounded-full ${
-                                    isCritical ? 'bg-error' : 'bg-amber-600'
+                                    isCritical ? 'bg-red-500' : 'bg-amber-500'
                                   }`}
                                   style={{ width: `${isCritical ? 0 : Math.max(8, coveragePct)}%` }}
                                 />
                               </div>
                             </td>
 
-                            <td className="py-space-sm px-space-md text-right align-middle whitespace-nowrap font-code-mono tabular-nums font-bold text-on-surface">
+                            <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-code-mono tabular-nums font-bold text-[#182034] border-y border-[#E8EEF7]">
                               +{deficit} u.
                             </td>
 
-                            <td className="py-space-sm px-space-md text-right align-middle whitespace-nowrap font-code-mono tabular-nums text-on-surface">
+                            <td className="py-3 px-4 text-right align-middle whitespace-nowrap font-code-mono tabular-nums text-[#182034] border-y border-[#E8EEF7]">
                               ${formatMoney(estimatedCostCup)} CUP
                             </td>
 
-                            <td className="py-space-sm px-space-md text-right align-middle whitespace-nowrap">
+                            <td className="py-3 px-4 text-right align-middle whitespace-nowrap rounded-r-xl border-y border-r border-[#E8EEF7]">
                               <button
-                                className="px-space-sm h-8 rounded-lg bg-surface-container-lowest hover:bg-primary-container hover:text-on-primary text-primary border border-outline-variant/40 font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
+                                className="px-3 h-8 rounded-xl bg-white hover:bg-[#0E4BFF] hover:text-white hover:border-[#0E4BFF] text-[#0E4BFF] border border-[#E8EEF7] font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
                                 onClick={() =>
                                   isEditing ? setRestockItemId(null) : openQuickRestock(entry)
                                 }
@@ -545,29 +555,29 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
                           </tr>
 
                           {isEditing && (
-                            <tr className="bg-surface-container-low">
-                              <td className="px-space-md py-space-sm" colSpan={6}>
-                                <div className="flex flex-wrap items-center justify-between gap-space-sm">
-                                  <div className="font-label-sm text-label-sm text-on-surface">
+                            <tr>
+                              <td className="px-4 py-3 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7]" colSpan={6}>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="font-label-sm text-label-sm text-[#182034]">
                                     Entrada rápida en SQLite para{' '}
                                     <span className="font-semibold">{item.descripcion}</span>
                                     {item.costo_ultimo > 0 && (
-                                      <span className="text-on-surface-variant font-code-mono tabular-nums">
+                                      <span className="text-[#64748B] font-code-mono tabular-nums">
                                         {' '}
                                         · Costo unit.: ${formatMoney(item.costo_ultimo)} CUP
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="flex flex-wrap items-center gap-space-xs">
+                                  <div className="flex flex-wrap items-center gap-2">
                                     <label
-                                      className="font-label-sm text-label-sm text-on-surface-variant"
+                                      className="font-label-sm text-label-sm text-[#64748B]"
                                       htmlFor={`restock-qty-${item.id}`}
                                     >
                                       Cantidad a ingresar:
                                     </label>
                                     <input
-                                      className="w-24 h-8 px-2 rounded-lg bg-surface-container-lowest border border-outline-variant/60 text-on-surface font-code-mono tabular-nums text-label-md focus:outline-none focus:ring-1 focus:ring-primary"
+                                      className="w-24 h-8 px-2.5 rounded-xl bg-white border border-[#E8EEF7] text-[#182034] font-code-mono tabular-nums text-label-md focus:outline-none focus:ring-2 focus:ring-[#0E4BFF]/25"
                                       id={`restock-qty-${item.id}`}
                                       min={1}
                                       onChange={(e) => {
@@ -578,7 +588,7 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
                                       value={restockQty}
                                     />
                                     <button
-                                      className="px-space-md h-8 rounded-lg bg-primary-container hover:bg-primary text-on-primary font-label-sm text-label-sm font-semibold transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
+                                      className="px-3.5 h-8 rounded-xl bg-[#0E4BFF] hover:bg-[#0B3EDB] text-white font-label-sm text-label-sm font-semibold transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
                                       disabled={restockSaving}
                                       onClick={() => void submitQuickRestock(entry)}
                                       type="button"
@@ -588,7 +598,7 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
                                   </div>
                                 </div>
                                 {restockError && (
-                                  <p className="font-label-sm text-label-sm text-error mt-1">
+                                  <p className="font-label-sm text-label-sm text-red-600 mt-1">
                                     {restockError}
                                   </p>
                                 )}

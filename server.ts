@@ -1,35 +1,70 @@
 import express, { type Request, type Response } from 'express';
-import * as esbuild from 'esbuild';
 import fs from 'node:fs';
+import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, hashSha256, runInTransaction, createSqliteBackup } from './src/db.js';
+import { db, hashSha256, runInTransaction, createSqliteBackup, closeDatabase } from './src/db.js';
 import { buildInventoryCsv, getInventoryCsvFilename, type InventoryCsvRow } from './src/utils/csvExport.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT_DIR = __dirname.endsWith(`${path.sep}dist`) ? path.resolve(__dirname, '..') : __dirname;
+const currentDir =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
+const ROOT_DIR = process.env.APP_RESOURCES_DIR
+  ? path.resolve(process.env.APP_RESOURCES_DIR)
+  : currentDir.endsWith(`${path.sep}dist`) || currentDir.endsWith(`${path.sep}dist-electron`)
+    ? path.resolve(currentDir, '..')
+    : currentDir;
 
-const reactEntryPoints: Array<{ src: string; out: string }> = [
-  {
-    src: path.join(ROOT_DIR, 'src', 'inventory-client.tsx'),
-    out: path.join(ROOT_DIR, 'assets', 'inventory-app.js'),
-  },
-  {
-    src: path.join(ROOT_DIR, 'src', 'dashboard-client.tsx'),
-    out: path.join(ROOT_DIR, 'assets', 'dashboard-app.js'),
-  },
-  {
-    src: path.join(ROOT_DIR, 'src', 'pos-client.tsx'),
-    out: path.join(ROOT_DIR, 'assets', 'pos-app.js'),
-  },
-  {
-    src: path.join(ROOT_DIR, 'src', 'suppliers-client.tsx'),
-    out: path.join(ROOT_DIR, 'assets', 'suppliers-app.js'),
-  },
-];
-for (const entry of reactEntryPoints) {
-  if (fs.existsSync(entry.src)) {
+async function ensureDevClientBundles(): Promise<void> {
+  if (
+    process.env.GESTOR_TIENDA_PACKAGED === '1' ||
+    process.env.GESTOR_TIENDA_EMBEDDED === '1' ||
+    process.env.NODE_ENV === 'production'
+  ) {
+    return;
+  }
+
+  const reactEntryPoints: Array<{ src: string; out: string }> = [
+    {
+      src: path.join(ROOT_DIR, 'src', 'inventory-client.tsx'),
+      out: path.join(ROOT_DIR, 'assets', 'inventory-app.js'),
+    },
+    {
+      src: path.join(ROOT_DIR, 'src', 'dashboard-client.tsx'),
+      out: path.join(ROOT_DIR, 'assets', 'dashboard-app.js'),
+    },
+    {
+      src: path.join(ROOT_DIR, 'src', 'pos-client.tsx'),
+      out: path.join(ROOT_DIR, 'assets', 'pos-app.js'),
+    },
+    {
+      src: path.join(ROOT_DIR, 'src', 'suppliers-client.tsx'),
+      out: path.join(ROOT_DIR, 'assets', 'suppliers-app.js'),
+    },
+    {
+      src: path.join(ROOT_DIR, 'src', 'petty-cash-client.tsx'),
+      out: path.join(ROOT_DIR, 'assets', 'petty-cash-app.js'),
+    },
+    {
+      src: path.join(ROOT_DIR, 'src', 'low-stock-report-client.tsx'),
+      out: path.join(ROOT_DIR, 'assets', 'low-stock-report-app.js'),
+    },
+    {
+      src: path.join(ROOT_DIR, 'src', 'daily-summary-client.tsx'),
+      out: path.join(ROOT_DIR, 'assets', 'daily-summary-app.js'),
+    },
+    {
+      src: path.join(ROOT_DIR, 'src', 'stock-alert-monitor-client.tsx'),
+      out: path.join(ROOT_DIR, 'assets', 'stock-alert-monitor-app.js'),
+    },
+  ];
+
+  const existingEntries = reactEntryPoints.filter((entry) => fs.existsSync(entry.src));
+  if (existingEntries.length === 0) return;
+
+  const esbuild = await import('esbuild');
+  for (const entry of existingEntries) {
     await esbuild.build({
       entryPoints: [entry.src],
       bundle: true,
@@ -40,8 +75,8 @@ for (const entry of reactEntryPoints) {
   }
 }
 
-const PORT = Number(process.env.PORT) || 3000;
-const app = express();
+const DEFAULT_PORT = Number(process.env.PORT) || 3000;
+export const app = express();
 
 app.use(express.json());
 
@@ -876,9 +911,8 @@ app.post('/api/ventas', (req: Request, res: Response) => {
 
 app.get('/api/turnos/activo', (_req: Request, res: Response) => {
   const turno = db.prepare(`
-    SELECT t.*, u.nombre_completo AS cajero_nombre, u.rol
+    SELECT t.*
     FROM turnos_caja t
-    JOIN usuarios u ON t.cajero_id = u.id
     WHERE t.estado = 'ABIERTA'
     ORDER BY t.id DESC
     LIMIT 1
@@ -942,7 +976,8 @@ app.post('/api/turnos/cierre', (req: Request, res: Response) => {
       };
     });
 
-    res.status(200).json({ success: true, ...result });
+    const dailySummary = computeDailySummary(formatLocalYmd(new Date()));
+    res.status(200).json({ success: true, ...result, daily_summary: dailySummary });
   } catch (err) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
@@ -1132,46 +1167,773 @@ app.get('/api/dashboard/weekly-sales', (_req: Request, res: Response) => {
   });
 });
 
+interface DailyPaymentBreakdown {
+  metodo: string;
+  tickets: number;
+  total_cup: number;
+}
+
+interface DailyExpenseBreakdown {
+  rubro: string;
+  vales: number;
+  total_cup: number;
+}
+
+interface DailySummaryPayload {
+  fecha_operativa: string;
+  total_ventas_cup: number;
+  costo_mercancia_cup: number;
+  gastos_operativos_cup: number;
+  total_gastos_cup: number;
+  ganancia_bruta_cup: number;
+  ganancia_neta_cup: number;
+  margen_neto_pct: number;
+  tickets_count: number;
+  vales_count: number;
+  descuentos_cup: number;
+  desglose_pagos: DailyPaymentBreakdown[];
+  desglose_gastos: DailyExpenseBreakdown[];
+  comparativa_ayer: {
+    fecha: string;
+    total_ventas_cup: number;
+    total_gastos_cup: number;
+    ganancia_neta_cup: number;
+  };
+  cerrado: boolean;
+  cerrado_en: string | null;
+  observaciones: string | null;
+}
+
+function getPreviousYmd(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(y, (m || 1) - 1, (d || 1) - 1);
+  return formatLocalYmd(dt);
+}
+
+function computeDailySummary(targetDate: string): DailySummaryPayload {
+  const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(targetDate) ? targetDate : formatLocalYmd(new Date());
+  const prevDate = getPreviousYmd(safeDate);
+
+  const ventasRows = db.prepare(`
+    SELECT
+      v.id,
+      v.created_at,
+      v.metodo_pago,
+      v.total_neto_cup,
+      v.descuento_cup,
+      COALESCE(
+        (SELECT SUM(vd.cantidad * vd.costo_unitario_historico) FROM venta_detalles vd WHERE vd.venta_id = v.id),
+        0.0
+      ) AS costo_total
+    FROM ventas v
+    WHERE v.estado = 'COMPLETADA'
+  `).all() as Array<{
+    id: number;
+    created_at: string;
+    metodo_pago: string;
+    total_neto_cup: number;
+    descuento_cup: number;
+    costo_total: number;
+  }>;
+
+  const valesRows = db.prepare(`
+    SELECT id, rubro, monto_desembolsado_cup, created_at
+    FROM caja_chica_vales
+  `).all() as Array<{
+    id: number;
+    rubro: string;
+    monto_desembolsado_cup: number;
+    created_at: string;
+  }>;
+
+  let totalVentas = 0;
+  let costoMercancia = 0;
+  let descuentos = 0;
+  let ticketsCount = 0;
+  const paymentMap = new Map<string, { tickets: number; total_cup: number }>();
+
+  let prevVentas = 0;
+  let prevCosto = 0;
+
+  for (const row of ventasRows) {
+    const localDate = formatLocalYmd(parseSqliteTimestamp(row.created_at));
+    const venta = Number(row.total_neto_cup || 0);
+    const costo = Number(row.costo_total || 0);
+
+    if (localDate === safeDate) {
+      totalVentas += venta;
+      costoMercancia += costo;
+      descuentos += Number(row.descuento_cup || 0);
+      ticketsCount += 1;
+
+      const metodo = String(row.metodo_pago || 'EFECTIVO').trim() || 'EFECTIVO';
+      const bucket = paymentMap.get(metodo) ?? { tickets: 0, total_cup: 0 };
+      bucket.tickets += 1;
+      bucket.total_cup = Number((bucket.total_cup + venta).toFixed(2));
+      paymentMap.set(metodo, bucket);
+    } else if (localDate === prevDate) {
+      prevVentas += venta;
+      prevCosto += costo;
+    }
+  }
+
+  let gastosOperativos = 0;
+  let valesCount = 0;
+  const expenseMap = new Map<string, { vales: number; total_cup: number }>();
+  let prevGastosOp = 0;
+
+  for (const vale of valesRows) {
+    const localDate = formatLocalYmd(parseSqliteTimestamp(vale.created_at));
+    const monto = Number(vale.monto_desembolsado_cup || 0);
+    if (localDate === safeDate) {
+      gastosOperativos += monto;
+      valesCount += 1;
+      const rubro = String(vale.rubro || 'Otros gastos').trim() || 'Otros gastos';
+      const bucket = expenseMap.get(rubro) ?? { vales: 0, total_cup: 0 };
+      bucket.vales += 1;
+      bucket.total_cup = Number((bucket.total_cup + monto).toFixed(2));
+      expenseMap.set(rubro, bucket);
+    } else if (localDate === prevDate) {
+      prevGastosOp += monto;
+    }
+  }
+
+  totalVentas = Number(totalVentas.toFixed(2));
+  costoMercancia = Number(costoMercancia.toFixed(2));
+  gastosOperativos = Number(gastosOperativos.toFixed(2));
+  descuentos = Number(descuentos.toFixed(2));
+
+  const gananciaBruta = Number((totalVentas - costoMercancia).toFixed(2));
+  const totalGastos = Number((costoMercancia + gastosOperativos).toFixed(2));
+  const gananciaNeta = Number((totalVentas - totalGastos).toFixed(2));
+  const margenNetoPct = totalVentas > 0 ? Number(((gananciaNeta / totalVentas) * 100).toFixed(1)) : 0;
+
+  const prevTotalGastos = Number((prevCosto + prevGastosOp).toFixed(2));
+  const prevGananciaNeta = Number((prevVentas - prevTotalGastos).toFixed(2));
+
+  const closedRow = db.prepare(`
+    SELECT fecha_operativa, observaciones, cerrado_en
+    FROM resumenes_diarios
+    WHERE fecha_operativa = ?
+    LIMIT 1
+  `).get(safeDate) as { fecha_operativa: string; observaciones: string | null; cerrado_en: string } | undefined;
+
+  return {
+    fecha_operativa: safeDate,
+    total_ventas_cup: totalVentas,
+    costo_mercancia_cup: costoMercancia,
+    gastos_operativos_cup: gastosOperativos,
+    total_gastos_cup: totalGastos,
+    ganancia_bruta_cup: gananciaBruta,
+    ganancia_neta_cup: gananciaNeta,
+    margen_neto_pct: margenNetoPct,
+    tickets_count: ticketsCount,
+    vales_count: valesCount,
+    descuentos_cup: descuentos,
+    desglose_pagos: Array.from(paymentMap.entries())
+      .map(([metodo, val]) => ({ metodo, tickets: val.tickets, total_cup: val.total_cup }))
+      .sort((a, b) => b.total_cup - a.total_cup),
+    desglose_gastos: Array.from(expenseMap.entries())
+      .map(([rubro, val]) => ({ rubro, vales: val.vales, total_cup: val.total_cup }))
+      .sort((a, b) => b.total_cup - a.total_cup),
+    comparativa_ayer: {
+      fecha: prevDate,
+      total_ventas_cup: Number(prevVentas.toFixed(2)),
+      total_gastos_cup: prevTotalGastos,
+      ganancia_neta_cup: prevGananciaNeta,
+    },
+    cerrado: Boolean(closedRow),
+    cerrado_en: closedRow?.cerrado_en ?? null,
+    observaciones: closedRow?.observaciones ?? null,
+  };
+}
+
+app.get('/api/resumen-diario', (req: Request, res: Response) => {
+  const now = new Date();
+  const todayStr = formatLocalYmd(now);
+  const requestedDate = String(req.query.fecha ?? todayStr).trim();
+  const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : todayStr;
+
+  const summary = computeDailySummary(targetDate);
+
+  const cfg = db.prepare(`
+    SELECT hora_cierre_operativo, auto_resumen_diario
+    FROM configuracion_negocio
+    WHERE id = 1
+  `).get() as { hora_cierre_operativo?: string; auto_resumen_diario?: number } | undefined;
+
+  const horaCierre = cfg?.hora_cierre_operativo || '19:00';
+  const autoEnabled = Number(cfg?.auto_resumen_diario ?? 1) === 1;
+
+  const nowHhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const isPastClosingHour = nowHhmm >= horaCierre;
+
+  const prevDate = getPreviousYmd(todayStr);
+  const prevSummary = computeDailySummary(prevDate);
+  const hasPendingPrevDay =
+    !prevSummary.cerrado && (prevSummary.tickets_count > 0 || prevSummary.vales_count > 0);
+
+  let shouldAutoPrompt = false;
+  let autoPromptReason: 'closing_time' | 'previous_day_unclosed' | null = null;
+  let autoPromptDate = todayStr;
+
+  if (autoEnabled) {
+    if (!summary.cerrado && targetDate === todayStr && isPastClosingHour) {
+      shouldAutoPrompt = true;
+      autoPromptReason = 'closing_time';
+      autoPromptDate = todayStr;
+    } else if (hasPendingPrevDay && targetDate === todayStr) {
+      shouldAutoPrompt = true;
+      autoPromptReason = 'previous_day_unclosed';
+      autoPromptDate = prevDate;
+    }
+  }
+
+  const recentSummaries = db.prepare(`
+    SELECT *
+    FROM resumenes_diarios
+    ORDER BY fecha_operativa DESC
+    LIMIT 7
+  `).all();
+
+  res.status(200).json({
+    summary,
+    today: todayStr,
+    now_hhmm: nowHhmm,
+    config: {
+      hora_cierre_operativo: horaCierre,
+      auto_resumen_diario: autoEnabled,
+    },
+    should_auto_prompt: shouldAutoPrompt,
+    auto_prompt_reason: autoPromptReason,
+    auto_prompt_date: autoPromptDate,
+    pending_previous_date: hasPendingPrevDay ? prevDate : null,
+    recent_summaries: recentSummaries,
+  });
+});
+
+app.post('/api/resumen-diario/cerrar', (req: Request, res: Response) => {
+  try {
+    const todayStr = formatLocalYmd(new Date());
+    const rawDate = String(req.body?.fecha ?? todayStr).trim();
+    const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayStr;
+    const observaciones = String(req.body?.observaciones ?? '').trim() || null;
+
+    const saved = runInTransaction(() => {
+      const summary = computeDailySummary(targetDate);
+      db.prepare(`
+        INSERT INTO resumenes_diarios (
+          fecha_operativa, total_ventas_cup, costo_mercancia_cup, gastos_operativos_cup,
+          total_gastos_cup, ganancia_bruta_cup, ganancia_neta_cup, margen_neto_pct,
+          tickets_count, vales_count, descuentos_cup, observaciones, cerrado_en
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(fecha_operativa) DO UPDATE SET
+          total_ventas_cup = excluded.total_ventas_cup,
+          costo_mercancia_cup = excluded.costo_mercancia_cup,
+          gastos_operativos_cup = excluded.gastos_operativos_cup,
+          total_gastos_cup = excluded.total_gastos_cup,
+          ganancia_bruta_cup = excluded.ganancia_bruta_cup,
+          ganancia_neta_cup = excluded.ganancia_neta_cup,
+          margen_neto_pct = excluded.margen_neto_pct,
+          tickets_count = excluded.tickets_count,
+          vales_count = excluded.vales_count,
+          descuentos_cup = excluded.descuentos_cup,
+          observaciones = excluded.observaciones,
+          cerrado_en = CURRENT_TIMESTAMP
+      `).run(
+        summary.fecha_operativa,
+        summary.total_ventas_cup,
+        summary.costo_mercancia_cup,
+        summary.gastos_operativos_cup,
+        summary.total_gastos_cup,
+        summary.ganancia_bruta_cup,
+        summary.ganancia_neta_cup,
+        summary.margen_neto_pct,
+        summary.tickets_count,
+        summary.vales_count,
+        summary.descuentos_cup,
+        observaciones
+      );
+
+      return computeDailySummary(targetDate);
+    });
+
+    res.status(200).json({ success: true, summary: saved });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post('/api/resumen-diario/config', (req: Request, res: Response) => {
+  try {
+    const rawHora = req.body?.hora_cierre_operativo;
+    const rawAuto = req.body?.auto_resumen_diario;
+
+    const current = db.prepare(`
+      SELECT hora_cierre_operativo, auto_resumen_diario
+      FROM configuracion_negocio
+      WHERE id = 1
+    `).get() as { hora_cierre_operativo?: string; auto_resumen_diario?: number } | undefined;
+
+    let horaCierre = current?.hora_cierre_operativo || '19:00';
+    if (typeof rawHora === 'string' && rawHora.trim() !== '') {
+      const cleaned = rawHora.trim();
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(cleaned)) {
+        res.status(400).json({
+          success: false,
+          error: 'Formato de hora inválido. Usa HH:MM en formato 24 horas (ej. 19:00).',
+        });
+        return;
+      }
+      horaCierre = cleaned;
+    }
+
+    const autoEnabled =
+      typeof rawAuto === 'boolean'
+        ? rawAuto
+          ? 1
+          : 0
+        : Number(current?.auto_resumen_diario ?? 1);
+
+    db.prepare(`
+      UPDATE configuracion_negocio
+      SET hora_cierre_operativo = ?, auto_resumen_diario = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `).run(horaCierre, autoEnabled);
+
+    res.status(200).json({
+      success: true,
+      config: {
+        hora_cierre_operativo: horaCierre,
+        auto_resumen_diario: autoEnabled === 1,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // API ENDPOINTS: PETTY CASH, CLIENTS, SANGRIAS, LIQUIDACIONES, BACKUP (SQLite)
 // ---------------------------------------------------------------------------
 
-app.get('/api/caja-chica', (_req: Request, res: Response) => {
-  const config = db.prepare('SELECT fondo_fijo_caja_chica FROM configuracion_negocio WHERE id = 1').get() as { fondo_fijo_caja_chica: number } | undefined;
-  const fondo_fijo = config?.fondo_fijo_caja_chica ?? 25000.0;
-  const vales = db.prepare('SELECT * FROM caja_chica_vales ORDER BY id DESC LIMIT 50').all() as Array<{ monto_desembolsado_cup: number }>;
-  const total_desembolsado = vales.reduce((sum, v) => sum + Number(v.monto_desembolsado_cup), 0);
-  const saldo_disponible = Math.max(0.0, fondo_fijo - total_desembolsado);
+interface CajaChicaValeRow {
+  id: number;
+  folio_vale: string;
+  turno_id: number | null;
+  autorizado_por: number;
+  beneficiario_nombre: string;
+  beneficiario_ci: string;
+  rubro: string;
+  monto_desembolsado_cup: number;
+  concepto_justificacion: string;
+  compromiso_factura_24h: number;
+  factura_entregada: number;
+  estado_ciclo: string;
+  hash_sha256: string;
+  created_at: string;
+}
 
-  res.status(200).json({
+interface CajaChicaArqueoRow {
+  id: number;
+  folio_arqueo: string;
+  fondo_fijo_cup: number;
+  total_vales_cup: number;
+  saldo_esperado_cup: number;
+  efectivo_contado_cup: number;
+  diferencia_cup: number;
+  estado: string;
+  desglose_billetes_json: string | null;
+  responsable_nombre: string;
+  observaciones: string | null;
+  vales_incluidos: number;
+  reintegro_aplicado: number;
+  hash_sha256: string;
+  created_at: string;
+}
+
+function getCajaChicaSnapshot() {
+  const config = db
+    .prepare('SELECT fondo_fijo_caja_chica, tope_vale_caja_chica FROM configuracion_negocio WHERE id = 1')
+    .get() as { fondo_fijo_caja_chica: number; tope_vale_caja_chica: number } | undefined;
+
+  const fondo_fijo = Number(config?.fondo_fijo_caja_chica ?? 25000.0);
+  const tope_vale = Number(config?.tope_vale_caja_chica ?? 5000.0);
+
+  const vales = db
+    .prepare('SELECT * FROM caja_chica_vales ORDER BY id DESC LIMIT 100')
+    .all() as unknown as CajaChicaValeRow[];
+
+  const activeVales = vales.filter((v) => (v.estado_ciclo || 'ACTIVO') === 'ACTIVO');
+  const total_desembolsado = Number(
+    activeVales.reduce((sum, v) => sum + Number(v.monto_desembolsado_cup || 0), 0).toFixed(2)
+  );
+  const saldo_disponible = Number(Math.max(0.0, fondo_fijo - total_desembolsado).toFixed(2));
+  const porcentaje_disponible =
+    fondo_fijo > 0 ? Number(((saldo_disponible / fondo_fijo) * 100).toFixed(1)) : 0;
+
+  const rubroTotals = new Map<string, number>();
+  let pendientes_factura_count = 0;
+  for (const v of activeVales) {
+    const monto = Number(v.monto_desembolsado_cup || 0);
+    rubroTotals.set(v.rubro, (rubroTotals.get(v.rubro) ?? 0) + monto);
+    if (Number(v.compromiso_factura_24h) === 1 && Number(v.factura_entregada) === 0) {
+      pendientes_factura_count += 1;
+    }
+  }
+
+  const desglose_rubros = Array.from(rubroTotals.entries())
+    .map(([rubro, total]) => ({
+      rubro,
+      total: Number(total.toFixed(2)),
+      porcentaje:
+        total_desembolsado > 0 ? Number(((total / total_desembolsado) * 100).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  const arqueos = db
+    .prepare('SELECT * FROM caja_chica_arqueos ORDER BY id DESC LIMIT 20')
+    .all() as unknown as CajaChicaArqueoRow[];
+
+  const todayRow = db
+    .prepare(`
+      SELECT
+        COUNT(*) AS vales_hoy,
+        COALESCE(SUM(monto_desembolsado_cup), 0.0) AS total_hoy
+      FROM caja_chica_vales
+      WHERE DATE(created_at) = DATE('now', 'localtime')
+        AND COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
+    `)
+    .get() as { vales_hoy: number; total_hoy: number };
+
+  return {
     fondo_fijo,
+    tope_vale,
     total_desembolsado,
     saldo_disponible,
+    porcentaje_disponible,
+    vales_activos_count: activeVales.length,
+    pendientes_factura_count,
+    vales_hoy: Number(todayRow?.vales_hoy ?? 0),
+    total_hoy: Number(todayRow?.total_hoy ?? 0),
+    desglose_rubros,
     vales,
-  });
+    arqueos,
+    ultimo_arqueo: arqueos[0] ?? null,
+  };
+}
+
+app.get('/api/caja-chica', (_req: Request, res: Response) => {
+  res.status(200).json(getCajaChicaSnapshot());
 });
 
 app.post('/api/caja-chica/vales', (req: Request, res: Response) => {
   try {
-    const benef = String(req.body?.beneficiario_nombre ?? '');
-    const ci = String(req.body?.beneficiario_ci ?? '');
-    const rubro = String(req.body?.rubro ?? 'Insumos y Embalaje');
-    const monto = Number(req.body?.monto_desembolsado_cup ?? 0.0);
-    const concepto = String(req.body?.concepto_justificacion ?? '');
-    const folio = `VAL-CC-${new Date().getFullYear()}-${String(Math.floor(Date.now() / 1000) % 1000).padStart(3, '0')}`;
-    const h = hashSha256(`${folio}|${benef}|${monto}|${concepto}`);
+    const benef = String(req.body?.beneficiario_nombre ?? '').trim();
+    const ci = String(req.body?.beneficiario_ci ?? '').trim();
+    const rubro = String(req.body?.rubro ?? 'Insumos y Embalaje').trim() || 'Insumos y Embalaje';
+    const monto = Number(req.body?.monto_desembolsado_cup ?? 0);
+    const concepto = String(req.body?.concepto_justificacion ?? '').trim();
+    const compromisoFactura = req.body?.compromiso_factura_24h === false ? 0 : 1;
+    const facturaEntregada = req.body?.factura_entregada === true ? 1 : 0;
+    const avalAdmin = req.body?.aval_admin === true;
 
-    db.prepare(`
-      INSERT INTO caja_chica_vales (
-        folio_vale, turno_id, autorizado_por, beneficiario_nombre, beneficiario_ci,
-        rubro, monto_desembolsado_cup, concepto_justificacion, hash_sha256
-      ) VALUES (?, 1, 1, ?, ?, ?, ?, ?, ?)
-    `).run(folio, benef, ci, rubro, monto, concepto, h);
+    if (!benef) {
+      res.status(400).json({ success: false, error: 'El nombre del beneficiario es obligatorio.' });
+      return;
+    }
+    if (!concepto) {
+      res.status(400).json({ success: false, error: 'El concepto y justificación del gasto son obligatorios.' });
+      return;
+    }
+    if (!Number.isFinite(monto) || Number.isNaN(monto) || monto <= 0) {
+      res.status(400).json({ success: false, error: 'El monto a desembolsar debe ser mayor a 0 CUP.' });
+      return;
+    }
 
-    res.status(201).json({ success: true, folio_vale: folio, hash_sha256: h });
+    const result = runInTransaction(() => {
+      const config = db
+        .prepare('SELECT fondo_fijo_caja_chica, tope_vale_caja_chica FROM configuracion_negocio WHERE id = 1')
+        .get() as { fondo_fijo_caja_chica: number; tope_vale_caja_chica: number } | undefined;
+
+      const fondoFijo = Number(config?.fondo_fijo_caja_chica ?? 25000.0);
+      const topeVale = Number(config?.tope_vale_caja_chica ?? 5000.0);
+
+      if (monto > topeVale && !avalAdmin) {
+        throw new Error(
+          `El importe ($${monto.toFixed(2)} CUP) supera el tope operativo de $${topeVale.toFixed(2)} CUP. Marca el aval de administrador para autorizarlo.`
+        );
+      }
+
+      const activeSumRow = db
+        .prepare("SELECT COALESCE(SUM(monto_desembolsado_cup), 0.0) AS total FROM caja_chica_vales WHERE COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'")
+        .get() as { total: number };
+      const saldoActual = Math.max(0, fondoFijo - Number(activeSumRow?.total ?? 0));
+
+      if (monto > saldoActual + 0.001) {
+        throw new Error(
+          `Saldo insuficiente en caja chica. Disponible: $${saldoActual.toFixed(2)} CUP.`
+        );
+      }
+
+      const openTurno = db
+        .prepare("SELECT id FROM turnos_caja WHERE estado = 'ABIERTA' ORDER BY id DESC LIMIT 1")
+        .get() as { id: number } | undefined;
+
+      const seqRow = db
+        .prepare('SELECT COALESCE(MAX(id), 0) + 1 AS next_seq FROM caja_chica_vales')
+        .get() as { next_seq: number };
+      const nextNum = Number(seqRow?.next_seq ?? 1) + 36;
+      const folio = `VAL-CC-${new Date().getFullYear()}-${String(nextNum).padStart(3, '0')}`;
+      const h = hashSha256(`${folio}|${benef}|${monto.toFixed(2)}|${concepto}`);
+
+      const info = db
+        .prepare(`
+          INSERT INTO caja_chica_vales (
+            folio_vale, turno_id, autorizado_por, beneficiario_nombre, beneficiario_ci,
+            rubro, monto_desembolsado_cup, concepto_justificacion,
+            compromiso_factura_24h, factura_entregada, estado_ciclo, hash_sha256
+          ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?)
+        `)
+        .run(
+          folio,
+          openTurno?.id ?? null,
+          benef,
+          ci || 'SIN-CI',
+          rubro,
+          monto,
+          concepto,
+          compromisoFactura,
+          facturaEntregada,
+          h
+        );
+
+      if (openTurno?.id) {
+        db.prepare(
+          'UPDATE turnos_caja SET total_egresos_caja_chica_cup = COALESCE(total_egresos_caja_chica_cup, 0) + ? WHERE id = ?'
+        ).run(monto, openTurno.id);
+      }
+
+      const vale = db
+        .prepare('SELECT * FROM caja_chica_vales WHERE id = ?')
+        .get(Number(info.lastInsertRowid)) as unknown as CajaChicaValeRow;
+
+      return {
+        folio_vale: folio,
+        hash_sha256: h,
+        vale,
+        saldo_disponible: Number(Math.max(0, saldoActual - monto).toFixed(2)),
+      };
+    });
+
+    res.status(201).json({ success: true, ...result });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const status = message.includes('Saldo insuficiente') || message.includes('tope operativo') ? 400 : 500;
+    res.status(status).json({ success: false, error: message });
+  }
+});
+
+app.put('/api/caja-chica/vales/:id/factura', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ success: false, error: 'Identificador de vale inválido.' });
+      return;
+    }
+
+    const current = db
+      .prepare('SELECT * FROM caja_chica_vales WHERE id = ?')
+      .get(id) as CajaChicaValeRow | undefined;
+    if (!current) {
+      res.status(404).json({ success: false, error: 'Vale de caja chica no encontrado.' });
+      return;
+    }
+
+    const nextValue =
+      typeof req.body?.factura_entregada === 'boolean'
+        ? req.body.factura_entregada
+          ? 1
+          : 0
+        : Number(current.factura_entregada) === 1
+          ? 0
+          : 1;
+
+    db.prepare('UPDATE caja_chica_vales SET factura_entregada = ? WHERE id = ?').run(nextValue, id);
+    const updated = db
+      .prepare('SELECT * FROM caja_chica_vales WHERE id = ?')
+      .get(id) as unknown as CajaChicaValeRow;
+
+    res.status(200).json({ success: true, vale: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+app.post('/api/caja-chica/arqueo', (req: Request, res: Response) => {
+  try {
+    const efectivoContado = Number(req.body?.efectivo_contado_cup);
+    const responsable = String(req.body?.responsable_nombre ?? 'Caja Central').trim() || 'Caja Central';
+    const observaciones = String(req.body?.observaciones ?? '').trim() || null;
+    const desgloseBilletes = req.body?.desglose_billetes ?? null;
+    const cerrarComoReembolso = req.body?.cerrar_como_reembolso === true;
+
+    if (!Number.isFinite(efectivoContado) || Number.isNaN(efectivoContado) || efectivoContado < 0) {
+      res.status(400).json({
+        success: false,
+        error: 'El efectivo físico contado debe ser un número mayor o igual a 0 CUP.',
+      });
+      return;
+    }
+
+    const arqueo = runInTransaction(() => {
+      const config = db
+        .prepare('SELECT fondo_fijo_caja_chica FROM configuracion_negocio WHERE id = 1')
+        .get() as { fondo_fijo_caja_chica: number } | undefined;
+      const fondoFijo = Number(config?.fondo_fijo_caja_chica ?? 25000.0);
+
+      const activeStats = db
+        .prepare(`
+          SELECT
+            COUNT(*) AS cnt,
+            COALESCE(SUM(monto_desembolsado_cup), 0.0) AS total
+          FROM caja_chica_vales
+          WHERE COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
+        `)
+        .get() as { cnt: number; total: number };
+
+      const totalVales = Number(Number(activeStats?.total ?? 0).toFixed(2));
+      const valesIncluidos = Number(activeStats?.cnt ?? 0);
+      const saldoEsperado = Number(Math.max(0, fondoFijo - totalVales).toFixed(2));
+      const contadoRounded = Number(efectivoContado.toFixed(2));
+      const diferencia = Number((contadoRounded - saldoEsperado).toFixed(2));
+
+      let estado = 'CUADRADO';
+      if (diferencia > 0.009) estado = 'SOBRANTE';
+      else if (diferencia < -0.009) estado = 'FALTANTE';
+
+      const seqRow = db
+        .prepare('SELECT COALESCE(MAX(id), 0) + 1 AS next_seq FROM caja_chica_arqueos')
+        .get() as { next_seq: number };
+      const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const folio = `ARQ-CC-${ymd}-${String(seqRow?.next_seq ?? 1).padStart(3, '0')}`;
+      const desgloseJson = desgloseBilletes ? JSON.stringify(desgloseBilletes) : null;
+      const reintegroAplicado = cerrarComoReembolso && valesIncluidos > 0 ? 1 : 0;
+      const h = hashSha256(
+        `${folio}|${fondoFijo.toFixed(2)}|${totalVales.toFixed(2)}|${contadoRounded.toFixed(2)}|${diferencia.toFixed(2)}`
+      );
+
+      const info = db
+        .prepare(`
+          INSERT INTO caja_chica_arqueos (
+            folio_arqueo, fondo_fijo_cup, total_vales_cup, saldo_esperado_cup,
+            efectivo_contado_cup, diferencia_cup, estado, desglose_billetes_json,
+            responsable_nombre, observaciones, vales_incluidos, reintegro_aplicado, hash_sha256
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          folio,
+          fondoFijo,
+          totalVales,
+          saldoEsperado,
+          contadoRounded,
+          diferencia,
+          estado,
+          desgloseJson,
+          responsable,
+          observaciones,
+          valesIncluidos,
+          reintegroAplicado,
+          h
+        );
+
+      if (reintegroAplicado === 1) {
+        db.prepare("UPDATE caja_chica_vales SET estado_ciclo = 'REINTEGRADO' WHERE COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'").run();
+      }
+
+      return db
+        .prepare('SELECT * FROM caja_chica_arqueos WHERE id = ?')
+        .get(Number(info.lastInsertRowid)) as unknown as CajaChicaArqueoRow;
+    });
+
+    const dailySummary = computeDailySummary(formatLocalYmd(new Date()));
+    res.status(201).json({ success: true, arqueo, daily_summary: dailySummary });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post('/api/caja-chica/reponer', (_req: Request, res: Response) => {
+  try {
+    const settledCount = runInTransaction(() => {
+      const info = db
+        .prepare("UPDATE caja_chica_vales SET estado_ciclo = 'REINTEGRADO' WHERE COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'")
+        .run();
+      return Number(info.changes ?? 0);
+    });
+
+    res.status(200).json({
+      success: true,
+      reintegrados: settledCount,
+      ...getCajaChicaSnapshot(),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.get('/api/caja-chica/export/csv', (_req: Request, res: Response) => {
+  const vales = db
+    .prepare('SELECT * FROM caja_chica_vales ORDER BY id DESC')
+    .all() as unknown as CajaChicaValeRow[];
+
+  const escapeCsv = (val: string | number | null | undefined): string => {
+    const text = String(val ?? '');
+    if (/[",\r\n]/.test(text)) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+  };
+
+  const headers = [
+    'Folio Vale',
+    'Fecha',
+    'Rubro',
+    'Concepto',
+    'Beneficiario',
+    'Carnet Identidad',
+    'Factura Entregada',
+    'Estado Ciclo',
+    'Monto CUP',
+  ];
+
+  const lines = [
+    headers.map(escapeCsv).join(','),
+    ...vales.map((v) =>
+      [
+        v.folio_vale,
+        v.created_at,
+        v.rubro,
+        v.concepto_justificacion,
+        v.beneficiario_nombre,
+        v.beneficiario_ci,
+        Number(v.factura_entregada) === 1 ? 'SI' : 'PENDIENTE',
+        v.estado_ciclo || 'ACTIVO',
+        Number(v.monto_desembolsado_cup || 0).toFixed(2),
+      ]
+        .map(escapeCsv)
+        .join(',')
+    ),
+  ];
+
+  const csvBody = `\uFEFF${lines.join('\r\n')}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const filename = `libro_caja_chica_${today}.csv`;
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).send(csvBody);
 });
 
 app.get('/api/clientes', (_req: Request, res: Response) => {
@@ -1339,9 +2101,8 @@ const PAGE_ALIASES: Record<string, string> = {
   'respaldo-y-mantenimiento-sqlite': 'mantenimiento.html',
   'reportes': 'reportes.html',
   'reportes-financieros': 'reportes.html',
-  'usuarios': 'usuarios.html',
-  'usuarios-roles': 'usuarios.html',
-  'usuarios-y-roles': 'usuarios.html',
+  'reporte-stock-bajo': 'reporte_stock_bajo.html',
+  'stock-bajo-imprimible': 'reporte_stock_bajo.html',
   'recepcion': 'recepcion.html',
   'recepcion-de-mercancia-entradas': 'recepcion.html',
   'comprobantes': 'comprobantes_pago.html',
@@ -1357,8 +2118,8 @@ const NAV_BRIDGE_SCRIPT = `
     if (existing) existing.remove();
     var toast = document.createElement('div');
     toast.id = 'gt-toast';
-    toast.className = 'fixed bottom-6 right-6 z-[9999] bg-inverse-surface text-inverse-on-surface px-4 py-3 rounded-xl shadow-xl font-label-md text-sm flex items-center gap-2 max-w-md';
-    toast.innerHTML = '<span class="material-symbols-outlined text-[18px] text-primary-fixed">info</span><span></span>';
+    toast.className = 'fixed bottom-6 right-6 z-[9999] bg-[#182034] text-white px-4 py-3 rounded-xl shadow-xl font-label-md text-sm flex items-center gap-2 max-w-md border border-white/10';
+    toast.innerHTML = '<span class="material-symbols-outlined text-[18px] text-[#7DA4FF]">info</span><span></span>';
     toast.querySelector('span:last-child').textContent = String(msg);
     document.body.appendChild(toast);
     setTimeout(function() { if (toast.parentNode) toast.remove(); }, 3500);
@@ -1375,16 +2136,20 @@ const NAV_BRIDGE_SCRIPT = `
     'catalogo-y-cuentas-por-pagar': '/proveedores',
     'catalogo-de-proveedores-y-cuentas-por-pagar': '/proveedores',
     'proveedores-y-obligaciones-de-pago': '/proveedores',
-    'reportes': '/reportes',
-    'reportes-financieros': '/reportes',
-    'usuarios-roles': '/usuarios',
-    'usuarios-y-roles': '/usuarios',
-    'clientes-y-creditos': '/clientes',
+    'caja-chica': '/caja-chica',
     'caja-chica-y-gastos': '/caja-chica',
     'caja-chica-y-gastos-operativos-menores': '/caja-chica',
+    'cierre-caja': '/cierre-caja',
+    'cuadre': '/cuadre',
     'cuadre-semanal-y-liquidacion-de-ganancias': '/cuadre',
+    'clientes': '/clientes',
+    'clientes-y-creditos': '/clientes',
+    'reportes': '/reportes',
+    'reportes-financieros': '/reportes',
+    'reporte-stock-bajo': '/reporte-stock-bajo',
     'kardex-y-actas-de-baja-mermas': '/kardex',
     'historial-de-comprobantes-de-pago': '/comprobantes',
+    'mantenimiento': '/mantenimiento',
     'respaldo-y-mantenimiento-sqlite': '/mantenimiento',
     'recepcion-de-mercancia-entradas': '/recepcion'
   };
@@ -1396,14 +2161,13 @@ const NAV_BRIDGE_SCRIPT = `
         link.setAttribute('href', routeMap[dp]);
       }
     });
-
-    var logoutBtn = document.querySelector('button[title="Cerrar sesión"]');
-    if (logoutBtn) {
-      logoutBtn.style.display = 'none';
-    }
   });
 })();
 </script>
+<div id="gt-daily-summary-root"></div>
+<script type="module" src="/assets/daily-summary-app.js"></script>
+<div id="gt-stock-alert-monitor-root"></div>
+<script type="module" src="/assets/stock-alert-monitor-app.js"></script>
 `;
 
 app.use((req: Request, res: Response, next) => {
@@ -1441,6 +2205,63 @@ app.use((req: Request, res: Response, next) => {
   res.sendFile(fullPath);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Gestor Tienda SQLite server running on http://0.0.0.0:${PORT}`);
-});
+export interface StartServerOptions {
+  port?: number;
+  host?: string;
+  allowPortFallback?: boolean;
+}
+
+export interface StartedServer {
+  port: number;
+  host: string;
+  close: () => Promise<void>;
+}
+
+function listenOn(port: number, host: string): Promise<{ port: number; close: () => Promise<void> }> {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, host, () => {
+      const address = server.address() as AddressInfo | null;
+      const boundPort = address?.port ?? port;
+      resolve({
+        port: boundPort,
+        close: () =>
+          new Promise<void>((resolveClose) => {
+            server.close(() => {
+              closeDatabase();
+              resolveClose();
+            });
+          }),
+      });
+    });
+    server.once('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+export async function startServer(options: StartServerOptions = {}): Promise<StartedServer> {
+  await ensureDevClientBundles();
+  const host = options.host ?? '0.0.0.0';
+  const requestedPort = options.port ?? DEFAULT_PORT;
+
+  try {
+    const started = await listenOn(requestedPort, host);
+    console.log(`Gestor Tienda SQLite server running on http://${host}:${started.port}`);
+    return { ...started, host };
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (options.allowPortFallback && code === 'EADDRINUSE' && requestedPort !== 0) {
+      const started = await listenOn(0, host);
+      console.log(`Gestor Tienda SQLite server running on http://${host}:${started.port}`);
+      return { ...started, host };
+    }
+    throw err;
+  }
+}
+
+if (process.env.GESTOR_TIENDA_EMBEDDED !== '1') {
+  startServer({ port: DEFAULT_PORT, host: '0.0.0.0' }).catch((err) => {
+    console.error('Error iniciando servidor Gestor Tienda:', err);
+    process.exit(1);
+  });
+}

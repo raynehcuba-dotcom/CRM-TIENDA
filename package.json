@@ -1,13 +1,19 @@
 {
   "name": "gestor-tienda",
   "version": "1.0.0",
+  "description": "Sistema local de gestión de ventas (TPV), inventario, proveedores, caja chica y cuadre semanal para tienda.",
+  "author": "Gestor Tienda",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "esbuild src/inventory-client.tsx --bundle --format=esm --minify --outfile=assets/inventory-app.js && esbuild src/dashboard-client.tsx --bundle --format=esm --minify --outfile=assets/dashboard-app.js && esbuild src/pos-client.tsx --bundle --format=esm --minify --outfile=assets/pos-app.js && esbuild src/suppliers-client.tsx --bundle --format=esm --minify --outfile=assets/suppliers-app.js && tsc",
+    "build": "esbuild src/inventory-client.tsx --bundle --format=esm --minify --outfile=assets/inventory-app.js && esbuild src/dashboard-client.tsx --bundle --format=esm --minify --outfile=assets/dashboard-app.js && esbuild src/pos-client.tsx --bundle --format=esm --minify --outfile=assets/pos-app.js && esbuild src/suppliers-client.tsx --bundle --format=esm --minify --outfile=assets/suppliers-app.js && esbuild src/petty-cash-client.tsx --bundle --format=esm --minify --outfile=assets/petty-cash-app.js && esbuild src/low-stock-report-client.tsx --bundle --format=esm --minify --outfile=assets/low-stock-report-app.js && esbuild src/daily-summary-client.tsx --bundle --format=esm --minify --outfile=assets/daily-summary-app.js && esbuild src/stock-alert-monitor-client.tsx --bundle --format=esm --minify --outfile=assets/stock-alert-monitor-app.js && tsc",
     "start": "node dist/server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "desktop:bundle": "npm run build && node scripts/build-desktop.mjs",
+    "desktop:run": "npm run desktop:bundle && electron .",
+    "desktop:exe": "npm run desktop:bundle && electron-builder --win portable --config electron-builder.json"
   },
   "dependencies": {
     "@types/express": "^5.0.6",
@@ -21,5 +27,9 @@
     "recharts": "^3.10.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "devDependencies": {
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.0"
   }
 }

@@ -4,15 +4,25 @@ import path from 'node:path';
 import { DatabaseSync, backup } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT_DIR = __dirname.includes(`${path.sep}dist${path.sep}`)
-  ? path.resolve(__dirname, '..', '..')
-  : path.resolve(__dirname, '..');
+const currentDir =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
+const ROOT_DIR = process.env.APP_RESOURCES_DIR
+  ? path.resolve(process.env.APP_RESOURCES_DIR)
+  : currentDir.includes(`${path.sep}dist${path.sep}`)
+    ? path.resolve(currentDir, '..', '..')
+    : path.resolve(currentDir, '..');
+
+export const DATA_DIR = process.env.APP_DATA_DIR
+  ? path.resolve(process.env.APP_DATA_DIR)
+  : ROOT_DIR;
 
 export const DB_PATH = process.env.SQLITE_DB_PATH
   ? path.resolve(process.env.SQLITE_DB_PATH)
-  : path.join(ROOT_DIR, 'tienda_data.db');
+  : path.join(DATA_DIR, 'tienda_data.db');
+
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 export function hashSha256(texto: string): string {
   return createHash('sha256').update(texto, 'utf8').digest('hex');
@@ -289,11 +299,61 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS caja_chica_arqueos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    folio_arqueo TEXT NOT NULL UNIQUE,
+    fondo_fijo_cup REAL NOT NULL,
+    total_vales_cup REAL NOT NULL,
+    saldo_esperado_cup REAL NOT NULL,
+    efectivo_contado_cup REAL NOT NULL,
+    diferencia_cup REAL NOT NULL,
+    estado TEXT NOT NULL,
+    desglose_billetes_json TEXT,
+    responsable_nombre TEXT NOT NULL,
+    observaciones TEXT,
+    vales_incluidos INTEGER NOT NULL DEFAULT 0,
+    reintegro_aplicado INTEGER NOT NULL DEFAULT 0,
+    hash_sha256 TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS resumenes_diarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha_operativa TEXT NOT NULL UNIQUE,
+    total_ventas_cup REAL NOT NULL DEFAULT 0.0,
+    costo_mercancia_cup REAL NOT NULL DEFAULT 0.0,
+    gastos_operativos_cup REAL NOT NULL DEFAULT 0.0,
+    total_gastos_cup REAL NOT NULL DEFAULT 0.0,
+    ganancia_bruta_cup REAL NOT NULL DEFAULT 0.0,
+    ganancia_neta_cup REAL NOT NULL DEFAULT 0.0,
+    margen_neto_pct REAL NOT NULL DEFAULT 0.0,
+    tickets_count INTEGER NOT NULL DEFAULT 0,
+    vales_count INTEGER NOT NULL DEFAULT 0,
+    descuentos_cup REAL NOT NULL DEFAULT 0.0,
+    observaciones TEXT,
+    cerrado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_productos_sku ON productos(sku);
   CREATE INDEX IF NOT EXISTS idx_productos_codigo_barras ON productos(codigo_barras);
   CREATE INDEX IF NOT EXISTS idx_ventas_folio ON ventas(folio_ticket);
   CREATE INDEX IF NOT EXISTS idx_kardex_producto ON kardex_movimientos(producto_id);
 `);
+
+// Safe migration: ensure estado_ciclo exists on caja_chica_vales for replenishment cycles
+const cajaChicaCols = db.prepare('PRAGMA table_info(caja_chica_vales)').all() as Array<{ name: string }>;
+if (!cajaChicaCols.some((c) => c.name === 'estado_ciclo')) {
+  db.exec("ALTER TABLE caja_chica_vales ADD COLUMN estado_ciclo TEXT NOT NULL DEFAULT 'ACTIVO';");
+}
+
+// Safe migration: ensure end-of-day closing schedule columns exist on configuracion_negocio
+const configCols = db.prepare('PRAGMA table_info(configuracion_negocio)').all() as Array<{ name: string }>;
+if (!configCols.some((c) => c.name === 'hora_cierre_operativo')) {
+  db.exec("ALTER TABLE configuracion_negocio ADD COLUMN hora_cierre_operativo TEXT NOT NULL DEFAULT '19:00';");
+}
+if (!configCols.some((c) => c.name === 'auto_resumen_diario')) {
+  db.exec('ALTER TABLE configuracion_negocio ADD COLUMN auto_resumen_diario INTEGER NOT NULL DEFAULT 1;');
+}
 
 export function runInTransaction<T>(fn: () => T): T {
   db.exec('BEGIN IMMEDIATE;');
@@ -450,16 +510,29 @@ function seedIfEmpty(): void {
 seedIfEmpty();
 
 export async function createSqliteBackup(): Promise<{ destFile: string; hashSha256: string }> {
-  const backupDir = path.join(ROOT_DIR, 'backups');
+  const backupDir = path.join(DATA_DIR, 'backups');
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
   db.exec('PRAGMA wal_checkpoint(PASSIVE);');
   const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
-  const relDest = path.join('backups', `respaldo_manual_${stamp}.db`);
-  const absDest = path.join(ROOT_DIR, relDest);
+  const fileName = `respaldo_manual_${stamp}.db`;
+  const absDest = path.join(backupDir, fileName);
   await backup(db, absDest);
   const fileBuffer = fs.readFileSync(absDest);
   const hash = createHash('sha256').update(fileBuffer).digest('hex');
-  return { destFile: relDest, hashSha256: hash };
+  return { destFile: path.join('backups', fileName), hashSha256: hash };
+}
+
+export function closeDatabase(): void {
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+  } catch {
+    // Ignore checkpoint errors if database is already closing
+  }
+  try {
+    db.close();
+  } catch {
+    // Ignore close errors
+  }
 }

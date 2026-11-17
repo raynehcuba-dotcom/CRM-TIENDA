@@ -151,11 +151,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     String(initialThreshold.fixedMinimum)
   );
 
-  // Inline per-item minimum threshold editor
+  // Inline per-item minimum threshold editor & active row selection
   const [editingMinItemId, setEditingMinItemId] = useState<number | null>(null);
   const [editingMinDraft, setEditingMinDraft] = useState<string>('');
   const [savingMinItemId, setSavingMinItemId] = useState<number | null>(null);
   const [minEditError, setMinEditError] = useState<string | null>(null);
+  const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
 
   const getEffectiveThreshold = useCallback(
     (item: InventoryItem): number =>
@@ -406,16 +407,16 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   ];
 
   return (
-    <div className="flex flex-col gap-space-lg mb-space-2xl">
-      {/* Toolbar: Search, Sort & Category Filters */}
-      <section className="bg-surface-container-lowest rounded-xl shadow-sm p-space-lg flex flex-col gap-space-md">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-center">
-          <div className="lg:col-span-5 flex items-center gap-space-xs">
+    <div className="flex flex-col gap-5 mb-8">
+      {/* Toolbar: Search, Sort & Underline Category Tabs */}
+      <section className="bg-white rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] px-6 pt-5 pb-0 flex flex-col gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+          <div className="lg:col-span-5 flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
               <label className="sr-only" htmlFor="inventory-search-input">
                 Filtrar artículos por nombre
               </label>
-              <div className="absolute inset-y-0 left-0 pl-space-md flex items-center pointer-events-none text-outline">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#94A3B8]">
                 <span className="material-symbols-outlined text-[20px]">search</span>
               </div>
               <input
@@ -423,7 +424,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                 autoComplete="off"
                 className={`w-full h-10 pl-10 ${
                   searchQuery ? 'pr-24' : 'pr-4'
-                } bg-surface-container-low rounded-xl text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/30 transition-all font-body-md text-body-md`}
+                } bg-[#F8FAFF] border border-[#E8EEF7] rounded-xl text-[#182034] placeholder:text-[#94A3B8] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E4BFF]/25 transition-all font-body-md text-body-md`}
                 id="inventory-search-input"
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -441,12 +442,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               />
               {searchQuery && (
                 <div className="absolute inset-y-0 right-1.5 flex items-center gap-1">
-                  <span className="font-code-mono text-[11px] text-on-surface-variant tabular-nums">
+                  <span className="font-code-mono text-[11px] text-[#64748B] tabular-nums">
                     {filteredItems.length}
                   </span>
                   <button
                     aria-label="Limpiar búsqueda"
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#182034] hover:bg-[#F1F5FD] transition-colors"
                     onClick={() => setSearchQuery('')}
                     title="Limpiar búsqueda"
                     type="button"
@@ -459,7 +460,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
             <select
               aria-label="Campo de búsqueda"
-              className="h-10 px-space-sm rounded-xl bg-surface-container-low text-on-surface font-label-sm text-label-sm focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer shrink-0"
+              className="h-10 px-3 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7] text-[#182034] font-label-sm text-label-sm focus:outline-none focus:ring-2 focus:ring-[#0E4BFF]/25 cursor-pointer shrink-0"
               onChange={(e) => setSearchScope(e.target.value as SearchScope)}
               title="Alcance del filtro"
               value={searchScope}
@@ -469,17 +470,17 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             </select>
           </div>
 
-          <div className="lg:col-span-7 flex flex-wrap items-center justify-start lg:justify-end gap-space-sm">
-            <div className="flex flex-wrap items-center gap-space-xs bg-surface-container-low px-space-sm py-1.5 min-h-10 rounded-xl border border-outline-variant/40">
-              <span className="material-symbols-outlined text-[18px] text-amber-700">tune</span>
+          <div className="lg:col-span-7 flex flex-wrap items-center justify-start lg:justify-end gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 bg-[#F8FAFF] px-3 py-1.5 min-h-10 rounded-xl border border-[#E8EEF7]">
+              <span className="material-symbols-outlined text-[18px] text-amber-600">tune</span>
               <label
-                className="font-label-sm text-label-sm text-on-surface-variant whitespace-nowrap"
+                className="font-label-sm text-label-sm text-[#64748B] whitespace-nowrap"
                 htmlFor="react-inv-threshold-mode"
               >
                 Alerta mínima:
               </label>
               <select
-                className="bg-transparent font-label-sm text-label-sm font-semibold text-on-surface focus:outline-none cursor-pointer"
+                className="bg-transparent font-label-sm text-label-sm font-semibold text-[#182034] focus:outline-none cursor-pointer"
                 id="react-inv-threshold-mode"
                 onChange={(e) =>
                   updateThresholdConfig(e.target.value as ThresholdMode, fixedThreshold)
@@ -490,10 +491,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                 <option value="fixed">Mínimo global definido</option>
               </select>
               {thresholdMode === 'fixed' && (
-                <div className="flex items-center gap-1 pl-1.5 border-l border-outline-variant/40">
+                <div className="flex items-center gap-1 pl-2 border-l border-[#E8EEF7]">
                   <input
                     aria-label="Mínimo global definido para alertas de stock"
-                    className="w-16 h-7 px-1.5 rounded-lg bg-surface-container-lowest border border-outline-variant/60 text-on-surface font-code-mono tabular-nums text-label-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    className="w-16 h-7 px-1.5 rounded-lg bg-white border border-[#E8EEF7] text-[#182034] font-code-mono tabular-nums text-label-sm text-right focus:outline-none focus:ring-2 focus:ring-[#0E4BFF]/25"
                     id="react-inv-fixed-threshold"
                     min={0}
                     onBlur={() => {
@@ -521,18 +522,18 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                     type="number"
                     value={thresholdInputText}
                   />
-                  <span className="font-code-mono text-[11px] text-on-surface-variant">u.</span>
+                  <span className="font-code-mono text-[11px] text-[#64748B]">u.</span>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center gap-space-xs bg-surface-container-low px-space-sm h-10 rounded-xl">
-              <span className="material-symbols-outlined text-[18px] text-secondary">sort</span>
-              <label className="font-label-sm text-label-sm text-on-surface-variant" htmlFor="react-inv-sort">
+            <div className="flex items-center gap-1.5 bg-[#F8FAFF] border border-[#E8EEF7] px-3 h-10 rounded-xl">
+              <span className="material-symbols-outlined text-[18px] text-[#64748B]">sort</span>
+              <label className="font-label-sm text-label-sm text-[#64748B]" htmlFor="react-inv-sort">
                 Ordenar:
               </label>
               <select
-                className="bg-transparent font-label-sm text-label-sm text-on-surface focus:outline-none cursor-pointer pr-space-xs"
+                className="bg-transparent font-label-sm text-label-sm font-semibold text-[#182034] focus:outline-none cursor-pointer pr-1"
                 id="react-inv-sort"
                 onChange={(e) => setSortBy(e.target.value as SortKey)}
                 value={sortBy}
@@ -547,14 +548,14 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
             <button
               aria-label="Exportar reporte de inventario actual a CSV"
-              className="h-10 px-space-md rounded-xl bg-surface-container-low hover:bg-surface-container flex items-center gap-space-xs text-on-surface font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-10 px-3.5 rounded-xl bg-white border border-[#E8EEF7] hover:bg-[#F8FAFF] flex items-center gap-1.5 text-[#182034] font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading || filteredItems.length === 0}
               id="btn-export-inventory-csv"
               onClick={handleExportCsv}
               title={`Descargar CSV con ${filteredItems.length} artículos, niveles de stock y precios`}
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px] text-secondary">
+              <span className="material-symbols-outlined text-[18px] text-[#64748B]">
                 file_download
               </span>
               <span>Exportar CSV</span>
@@ -562,18 +563,18 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
             <button
               aria-label="Actualizar inventario desde SQLite"
-              className="h-10 px-space-md rounded-xl bg-surface-container-low hover:bg-surface-container flex items-center gap-space-xs text-on-surface font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+              className="h-10 px-3.5 rounded-xl bg-white border border-[#E8EEF7] hover:bg-[#F8FAFF] flex items-center gap-1.5 text-[#182034] font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0"
               onClick={() => void fetchInventory()}
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">refresh</span>
+              <span className="material-symbols-outlined text-[18px] text-[#64748B]">refresh</span>
               <span>Actualizar</span>
             </button>
 
             {onCreateProduct && (
               <button
                 aria-label="Agregar nuevo artículo al inventario"
-                className="h-10 px-space-md rounded-xl bg-surface-container hover:bg-surface-container-high flex items-center gap-space-xs text-primary font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0"
+                className="h-10 px-4 rounded-xl bg-[#0E4BFF] hover:bg-[#0B3EDB] flex items-center gap-1.5 text-white font-label-sm text-label-sm font-semibold shadow-[0_4px_12px_rgba(14,75,255,0.22)] transition-colors whitespace-nowrap shrink-0"
                 onClick={onCreateProduct}
                 type="button"
               >
@@ -584,26 +585,38 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-space-xs overflow-x-auto pb-0.5 pt-space-xs">
+        {/* Underline Category Tabs */}
+        <div className="flex items-center gap-6 overflow-x-auto border-t border-[#F1F5FD] pt-1 -mb-px">
           {filterTabs.map((tab) => {
             const isActive = categoryFilter === tab.key;
             const isAlertTab = tab.key === 'bajo-stock';
             return (
               <button
-                className={`px-space-md py-space-xs rounded-xl font-label-sm text-label-sm transition-all whitespace-nowrap shrink-0 ${
+                className={`py-3 border-b-2 font-label-md text-label-md transition-all whitespace-nowrap shrink-0 inline-flex items-center gap-2 ${
                   isActive
                     ? isAlertTab
-                      ? 'bg-error text-on-error shadow-sm font-semibold'
-                      : 'bg-primary-container text-on-primary shadow-sm font-semibold'
+                      ? 'border-red-600 text-red-700 font-semibold'
+                      : 'border-[#0E4BFF] text-[#182034] font-semibold'
                     : isAlertTab
-                      ? 'bg-error-container/50 text-error hover:bg-error-container font-semibold'
-                      : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                      ? 'border-transparent text-red-600/80 hover:text-red-700 font-medium'
+                      : 'border-transparent text-[#94A3B8] hover:text-[#182034] font-medium'
                 }`}
                 key={tab.key}
                 onClick={() => setCategoryFilter(tab.key)}
                 type="button"
               >
-                {tab.label} ({tab.count})
+                <span>{tab.label}</span>
+                <span
+                  className={`font-code-mono text-[11px] tabular-nums px-1.5 py-0.5 rounded-md ${
+                    isActive
+                      ? isAlertTab
+                        ? 'bg-red-50 text-red-700'
+                        : 'bg-[#EEF3FF] text-[#0E4BFF]'
+                      : 'bg-[#F8FAFF] text-[#64748B]'
+                  }`}
+                >
+                  {tab.count}
+                </span>
               </button>
             );
           })}
@@ -614,24 +627,24 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       {!loading && !error && (
         <section
           aria-live="polite"
-          className={`rounded-xl px-space-lg py-space-md flex flex-col lg:flex-row lg:items-center justify-between gap-space-md border ${
+          className={`rounded-2xl px-5 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border ${
             counts.lowStock === 0
-              ? 'bg-[#ecfdf5] border-[#a7f3d0] text-on-surface'
+              ? 'bg-[#ecfdf5] border-[#a7f3d0] text-[#182034]'
               : counts.outOfStock > 0
-                ? 'bg-error-container/25 border-error/30 text-on-surface'
-                : 'bg-amber-50 border-amber-300 text-on-surface'
+                ? 'bg-red-50/85 border-red-200 text-[#182034]'
+                : 'bg-amber-50/90 border-amber-200 text-[#182034]'
           }`}
           id="inventory-alert-system"
           role="status"
         >
-          <div className="flex items-start sm:items-center gap-space-sm min-w-0">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
             <div
-              className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                 counts.lowStock === 0
                   ? 'bg-[#065f46] text-white'
                   : counts.outOfStock > 0
-                    ? 'bg-error text-on-error'
-                    : 'bg-amber-700 text-white'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-amber-600 text-white'
               }`}
             >
               <span className="material-symbols-outlined text-[20px]">
@@ -639,7 +652,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               </span>
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="font-body-bold text-body-bold text-on-surface tabular-nums">
+              <span className="font-body-bold text-body-bold text-[#182034] tabular-nums">
                 {counts.lowStock === 0
                   ? 'Niveles de stock saludables según el umbral mínimo activo'
                   : `Alerta de umbral mínimo: ${counts.lowStock} ${
@@ -648,7 +661,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                         : 'artículos resaltados por debajo del mínimo'
                     }`}
               </span>
-              <span className="font-label-sm text-label-sm text-on-surface-variant tabular-nums">
+              <span className="font-label-sm text-label-sm text-[#64748B] tabular-nums">
                 {counts.lowStock === 0
                   ? thresholdMode === 'fixed'
                     ? `Ningún artículo está por debajo de ${fixedThreshold} u.`
@@ -662,15 +675,15 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-space-xs shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {thresholdMode === 'fixed' && (
-              <div className="flex items-center gap-1 mr-space-xs">
+              <div className="flex items-center gap-1 mr-1">
                 {[10, 25, 50].map((preset) => (
                   <button
-                    className={`h-8 px-2.5 rounded-lg font-code-mono text-[11px] font-semibold border transition-colors ${
+                    className={`h-8 px-2.5 rounded-xl font-code-mono text-[11px] font-semibold border transition-colors ${
                       fixedThreshold === preset
-                        ? 'bg-primary-container text-on-primary border-primary-container'
-                        : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant/50 hover:bg-surface-container'
+                        ? 'bg-[#0E4BFF] text-white border-[#0E4BFF]'
+                        : 'bg-white text-[#64748B] border-[#E8EEF7] hover:bg-[#F8FAFF]'
                     }`}
                     key={preset}
                     onClick={() => updateThresholdConfig('fixed', preset)}
@@ -684,12 +697,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
             {counts.lowStock > 0 && (
               <button
-                className={`px-space-md h-9 rounded-xl font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                className={`px-3.5 h-9 rounded-xl font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   categoryFilter === 'bajo-stock'
-                    ? 'bg-surface-container-lowest text-on-surface border border-outline-variant/50 hover:bg-surface-container'
+                    ? 'bg-white text-[#182034] border border-[#E8EEF7] hover:bg-[#F8FAFF]'
                     : counts.outOfStock > 0
-                      ? 'bg-error text-on-error hover:opacity-90'
-                      : 'bg-amber-700 text-white hover:bg-amber-800'
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'bg-amber-600 text-white hover:bg-amber-700'
                 }`}
                 onClick={() =>
                   setCategoryFilter((prev) => (prev === 'bajo-stock' ? 'all' : 'bajo-stock'))
@@ -701,23 +714,32 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   : `Solo en alerta (${counts.lowStock})`}
               </button>
             )}
+
+            <a
+              className="px-3.5 h-9 rounded-xl bg-white text-[#182034] border border-[#E8EEF7] hover:bg-[#F8FAFF] font-label-sm text-label-sm font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+              href="/reporte-stock-bajo"
+              id="btn-inventory-printable-low-stock"
+            >
+              <span className="material-symbols-outlined text-[17px]">print</span>
+              <span>Reporte Imprimible</span>
+            </a>
           </div>
         </section>
       )}
 
-      {/* Inventory Data Table */}
-      <section className="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+      {/* Inventory Floating-Card Data Table */}
+      <section className="bg-white rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] p-4 sm:p-5 overflow-hidden">
         {error ? (
-          <div className="p-space-2xl flex flex-col items-center justify-center text-center gap-space-md">
-            <span className="material-symbols-outlined text-error text-[32px]">error_outline</span>
+          <div className="p-10 flex flex-col items-center justify-center text-center gap-3">
+            <span className="material-symbols-outlined text-red-600 text-[32px]">error_outline</span>
             <div>
-              <h3 className="font-headline-sm text-headline-sm text-on-surface">
+              <h3 className="font-headline-sm text-headline-sm text-[#182034]">
                 No se pudo leer el inventario desde SQLite
               </h3>
-              <p className="font-body-md text-body-md text-on-surface-variant mt-1">{error}</p>
+              <p className="font-body-md text-body-md text-[#64748B] mt-1">{error}</p>
             </div>
             <button
-              className="px-space-lg h-10 rounded-xl bg-primary text-on-primary font-label-md text-label-md font-semibold hover:bg-primary-container transition-colors"
+              className="px-5 h-10 rounded-xl bg-[#0E4BFF] text-white font-label-md text-label-md font-semibold hover:bg-[#0B3EDB] transition-colors"
               onClick={() => void fetchInventory()}
               type="button"
             >
@@ -726,21 +748,21 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse" id="stock-table">
+            <div className="overflow-x-auto px-1">
+              <table className="w-full text-left border-separate border-spacing-y-2.5" id="stock-table">
                 <thead>
-                  <tr className="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm tracking-wide uppercase">
-                    <th className="py-space-md px-space-lg font-semibold w-12 text-center">#</th>
-                    <th className="py-space-md px-space-lg font-semibold">SKU</th>
-                    <th className="py-space-md px-space-lg font-semibold">Nombre</th>
-                    <th className="py-space-md px-space-lg font-semibold text-right">Nivel de Stock</th>
-                    <th className="py-space-md px-space-lg font-semibold text-right">Precio Unitario</th>
+                  <tr className="text-[#64748B] font-label-sm text-label-sm tracking-wide uppercase">
+                    <th className="py-2 px-4 font-semibold w-12 text-center">#</th>
+                    <th className="py-2 px-4 font-semibold">SKU</th>
+                    <th className="py-2 px-4 font-semibold">Nombre</th>
+                    <th className="py-2 px-4 font-semibold text-right">Nivel de Stock</th>
+                    <th className="py-2 px-4 font-semibold text-right">Precio Unitario</th>
                     {(onAdjustItem || onEditItem || onDeleteItem) && (
-                      <th className="py-space-md px-space-lg font-semibold text-right">Acciones</th>
+                      <th className="py-2 px-4 font-semibold text-right">Acciones</th>
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-surface-container-low font-body-md text-body-md text-on-surface">
+                <tbody className="font-body-md text-body-md text-[#182034]">
                   {loading ? (
                     Array.from({ length: 5 }).map((_, idx) => (
                       <tr className="animate-pulse" key={`skeleton-${idx}`}>
@@ -830,17 +852,46 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                             )
                           : 100;
 
-                      const rowClass = isOut
-                        ? 'bg-error-container/25 border-l-4 border-l-error hover:bg-error-container/35 transition-colors'
-                        : isLow
-                          ? 'bg-amber-50/95 border-l-4 border-l-amber-500 hover:bg-amber-100/75 transition-colors'
-                          : 'border-l-4 border-l-transparent hover:bg-surface-container-low transition-colors';
+                      const isSelected = selectedRowId === item.id;
+                      const rowSurfaceClass = isSelected
+                        ? 'bg-[#0E4BFF] text-white shadow-[0_12px_28px_-6px_rgba(14,75,255,0.42)]'
+                        : isOut
+                          ? 'bg-red-50/80 hover:bg-red-50 text-[#182034]'
+                          : isLow
+                            ? 'bg-amber-50/85 hover:bg-amber-50 text-[#182034]'
+                            : 'bg-white hover:bg-[#F8FAFF] text-[#182034]';
 
-                      const stockColor = isOut
-                        ? 'text-error font-bold'
-                        : isLow
-                          ? 'text-amber-900 font-bold'
-                          : 'text-on-surface font-semibold';
+                      const cellBorderClass = isSelected
+                        ? 'border-y border-[#0E4BFF]'
+                        : isOut
+                          ? 'border-y border-red-200/80'
+                          : isLow
+                            ? 'border-y border-amber-200/80'
+                            : 'border-y border-[#E8EEF7]';
+
+                      const leftCellBorderClass = isSelected
+                        ? 'rounded-l-xl border-y border-l border-[#0E4BFF]'
+                        : isOut
+                          ? 'rounded-l-xl border-y border-l-4 border-l-red-600 border-red-200/80'
+                          : isLow
+                            ? 'rounded-l-xl border-y border-l-4 border-l-amber-500 border-amber-200/80'
+                            : 'rounded-l-xl border-y border-l border-[#E8EEF7]';
+
+                      const rightCellBorderClass = isSelected
+                        ? 'rounded-r-xl border-y border-r border-[#0E4BFF]'
+                        : isOut
+                          ? 'rounded-r-xl border-y border-r border-red-200/80'
+                          : isLow
+                            ? 'rounded-r-xl border-y border-r border-amber-200/80'
+                            : 'rounded-r-xl border-y border-r border-[#E8EEF7]';
+
+                      const stockColor = isSelected
+                        ? 'text-white font-bold'
+                        : isOut
+                          ? 'text-red-700 font-bold'
+                          : isLow
+                            ? 'text-amber-900 font-bold'
+                            : 'text-[#182034] font-semibold';
 
                       const stockStatusLabel = isOut
                         ? 'Agotado'
@@ -853,43 +904,62 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
                       return (
                         <tr
-                          className={rowClass}
+                          className={`cursor-pointer transition-all ${rowSurfaceClass}`}
                           data-stock-alert={isOut ? 'critical' : isLow ? 'warning' : 'ok'}
                           data-threshold-active={effectiveThreshold}
                           key={item.id}
+                          onClick={() =>
+                            setSelectedRowId((prev) => (prev === item.id ? null : item.id))
+                          }
                         >
-                          <td className="py-space-md px-space-lg text-center font-code-mono tabular-nums text-outline text-label-sm">
+                          <td
+                            className={`py-3.5 px-4 text-center font-code-mono tabular-nums text-label-sm ${leftCellBorderClass} ${
+                              isSelected ? 'text-white/85' : 'text-[#94A3B8]'
+                            }`}
+                          >
                             {String(idx + 1).padStart(2, '0')}
                           </td>
-                          <td className="py-space-md px-space-lg align-middle">
+                          <td className={`py-3.5 px-4 align-middle ${cellBorderClass}`}>
                             <span
                               className={`font-code-mono text-code-mono font-medium block ${
-                                isOut
-                                  ? 'text-error'
-                                  : isLow
-                                    ? 'text-amber-900'
-                                    : 'text-on-surface-variant'
+                                isSelected
+                                  ? 'text-white font-semibold'
+                                  : isOut
+                                    ? 'text-red-700'
+                                    : isLow
+                                      ? 'text-amber-900'
+                                      : 'text-[#64748B]'
                               }`}
                             >
                               {item.sku}
                             </span>
                             {item.codigo_barras && (
-                              <span className="font-label-sm text-[11px] text-secondary tabular-nums">
+                              <span
+                                className={`font-label-sm text-[11px] tabular-nums ${
+                                  isSelected ? 'text-white/75' : 'text-[#94A3B8]'
+                                }`}
+                              >
                                 EAN: {item.codigo_barras}
                               </span>
                             )}
                           </td>
-                          <td className="py-space-md px-space-lg align-middle">
-                            <div className="flex flex-wrap items-center gap-x-space-sm gap-y-0.5">
-                              <span className="font-body-bold text-body-bold text-on-surface">
+                          <td className={`py-3.5 px-4 align-middle ${cellBorderClass}`}>
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span
+                                className={`font-body-bold text-body-bold ${
+                                  isSelected ? 'text-white' : 'text-[#182034]'
+                                }`}
+                              >
                                 {renderHighlightedName(item.descripcion, searchQuery)}
                               </span>
                               {(isOut || isLow) && (
                                 <span
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-label-sm text-[11px] font-semibold tabular-nums ${
-                                    isOut
-                                      ? 'bg-error text-on-error'
-                                      : 'bg-amber-200/80 text-amber-950'
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-label-sm text-[11px] font-semibold tabular-nums ${
+                                    isSelected
+                                      ? 'bg-white/20 text-white'
+                                      : isOut
+                                        ? 'bg-red-600 text-white'
+                                        : 'bg-amber-200/80 text-amber-950'
                                   }`}
                                 >
                                   <span className="material-symbols-outlined text-[14px]">
@@ -903,7 +973,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                                 </span>
                               )}
                             </div>
-                            <div className="font-label-sm text-label-sm text-on-surface-variant flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <div
+                              className={`font-label-sm text-label-sm flex flex-wrap items-center gap-1.5 mt-0.5 ${
+                                isSelected ? 'text-white/80' : 'text-[#64748B]'
+                              }`}
+                            >
                               <span>{item.categoria_nombre || 'Sin categoría'}</span>
                               <span aria-hidden="true">·</span>
                               <span>{item.proveedor_nombre || 'Sin proveedor'}</span>
@@ -911,12 +985,21 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                               <span>{item.unidad_medida}</span>
                             </div>
                           </td>
-                          <td className="py-space-md px-space-lg text-right align-middle">
+                          <td
+                            className={`py-3.5 px-4 text-right align-middle ${cellBorderClass}`}
+                            onClick={(e) => {
+                              if (isEditingMin) e.stopPropagation();
+                            }}
+                          >
                             <div className="inline-flex items-center justify-end gap-1.5">
                               {(isOut || isLow) && (
                                 <span
                                   className={`material-symbols-outlined text-[16px] ${
-                                    isOut ? 'text-error' : 'text-amber-700'
+                                    isSelected
+                                      ? 'text-white'
+                                      : isOut
+                                        ? 'text-red-600'
+                                        : 'text-amber-700'
                                   }`}
                                 >
                                   {isOut ? 'error' : 'warning'}
@@ -926,34 +1009,45 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                                 {stock} u.
                               </span>
                             </div>
-                            <div className="w-24 h-1.5 rounded-full bg-surface-container-high ml-auto mt-1 overflow-hidden">
+                            <div
+                              className={`w-24 h-1.5 rounded-full ml-auto mt-1 overflow-hidden ${
+                                isSelected ? 'bg-white/25' : 'bg-[#EEF3FF]'
+                              }`}
+                            >
                               <div
                                 className={`h-full rounded-full transition-all ${
-                                  isOut
-                                    ? 'bg-error'
-                                    : isLow
-                                      ? 'bg-amber-600'
-                                      : 'bg-primary/60'
+                                  isSelected
+                                    ? 'bg-white'
+                                    : isOut
+                                      ? 'bg-red-600'
+                                      : isLow
+                                        ? 'bg-amber-600'
+                                        : 'bg-[#0E4BFF]'
                                 }`}
                                 style={{ width: `${fillPct}%` }}
                               />
                             </div>
                             <div
                               className={`font-label-sm text-[11px] tabular-nums mt-1 flex items-center justify-end gap-1 ${
-                                isOut
-                                  ? 'text-error font-semibold'
-                                  : isLow
-                                    ? 'text-amber-900 font-semibold'
-                                    : 'text-on-surface-variant'
+                                isSelected
+                                  ? 'text-white/85'
+                                  : isOut
+                                    ? 'text-red-700 font-semibold'
+                                    : isLow
+                                      ? 'text-amber-900 font-semibold'
+                                      : 'text-[#64748B]'
                               }`}
                             >
                               <span>{stockStatusLabel}</span>
                               <span aria-hidden="true">·</span>
                               {isEditingMin ? (
-                                <span className="inline-flex items-center gap-1">
+                                <span
+                                  className="inline-flex items-center gap-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   <input
                                     aria-label={`Nuevo stock mínimo para ${item.descripcion}`}
-                                    className="w-14 h-6 px-1 rounded bg-surface-container-lowest border border-primary/50 text-on-surface font-code-mono text-[11px] text-right focus:outline-none"
+                                    className="w-14 h-6 px-1 rounded bg-white border border-[#0E4BFF]/50 text-[#182034] font-code-mono text-[11px] text-right focus:outline-none"
                                     disabled={isSavingMin}
                                     min={0}
                                     onChange={(e) => {
@@ -974,7 +1068,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                                   />
                                   <button
                                     aria-label="Guardar mínimo en SQLite"
-                                    className="w-5 h-5 rounded bg-primary text-on-primary inline-flex items-center justify-center hover:bg-primary-container disabled:opacity-50"
+                                    className="w-5 h-5 rounded bg-[#0E4BFF] text-white inline-flex items-center justify-center hover:bg-[#0B3EDB] disabled:opacity-50"
                                     disabled={isSavingMin}
                                     onClick={() => void handleSaveItemMinimum(item)}
                                     title="Guardar mínimo"
@@ -984,7 +1078,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                                   </button>
                                   <button
                                     aria-label="Cancelar edición de mínimo"
-                                    className="w-5 h-5 rounded bg-surface-container text-on-surface-variant inline-flex items-center justify-center hover:bg-surface-container-high"
+                                    className="w-5 h-5 rounded bg-[#F1F5FD] text-[#64748B] inline-flex items-center justify-center hover:bg-[#E8EEF7]"
                                     disabled={isSavingMin}
                                     onClick={() => {
                                       setEditingMinItemId(null);
@@ -1000,7 +1094,10 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                                 <button
                                   aria-label={`Editar mínimo de ${item.descripcion}`}
                                   className="inline-flex items-center gap-0.5 hover:underline decoration-dotted cursor-pointer"
-                                  onClick={() => handleStartEditMin(item)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStartEditMin(item);
+                                  }}
                                   title={
                                     thresholdMode === 'fixed'
                                       ? `Mínimo global activo: ${effectiveThreshold} u. (clic para editar mínimo SQLite del artículo: ${item.stock_minimo} u.)`
@@ -1021,24 +1118,47 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                               )}
                             </div>
                             {isEditingMin && minEditError && (
-                              <div className="text-[11px] text-error mt-0.5">{minEditError}</div>
+                              <div className={`text-[11px] mt-0.5 ${isSelected ? 'text-white' : 'text-red-600'}`}>
+                                {minEditError}
+                              </div>
                             )}
                           </td>
-                          <td className="py-space-md px-space-lg text-right align-middle">
-                            <div className="font-code-mono tabular-nums text-body-bold text-on-surface font-bold">
+                          <td
+                            className={`py-3.5 px-4 text-right align-middle ${
+                              onAdjustItem || onEditItem || onDeleteItem
+                                ? cellBorderClass
+                                : rightCellBorderClass
+                            }`}
+                          >
+                            <div
+                              className={`font-code-mono tabular-nums text-body-bold font-bold ${
+                                isSelected ? 'text-white' : 'text-[#182034]'
+                              }`}
+                            >
                               ${formatCurrency(unitPrice)} CUP
                             </div>
-                            <div className="font-label-sm text-[11px] text-on-surface-variant tabular-nums">
+                            <div
+                              className={`font-label-sm text-[11px] tabular-nums ${
+                                isSelected ? 'text-white/75' : 'text-[#64748B]'
+                              }`}
+                            >
                               Costo: ${formatCurrency(unitCost)}
                             </div>
                           </td>
                           {(onAdjustItem || onEditItem || onDeleteItem) && (
-                            <td className="py-space-md px-space-lg text-right align-middle">
-                              <div className="inline-flex items-center justify-end gap-space-xs">
+                            <td
+                              className={`py-3.5 px-4 text-right align-middle ${rightCellBorderClass}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="inline-flex items-center justify-end gap-1.5">
                                 {onAdjustItem && (
                                   <button
                                     aria-label={`Ajustar stock de ${item.descripcion}`}
-                                    className="p-space-xs rounded-lg bg-surface-container-high hover:bg-primary-container hover:text-on-primary text-primary transition-colors inline-flex items-center justify-center"
+                                    className={`w-8 h-8 rounded-xl transition-colors inline-flex items-center justify-center ${
+                                      isSelected
+                                        ? 'bg-white text-[#0E4BFF] hover:bg-white/90'
+                                        : 'bg-[#F8FAFF] border border-[#E8EEF7] hover:bg-[#0E4BFF] hover:text-white hover:border-[#0E4BFF] text-[#0E4BFF]'
+                                    }`}
                                     onClick={() => onAdjustItem(item)}
                                     title="Ajustar Stock"
                                     type="button"
@@ -1049,7 +1169,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                                 {onEditItem && (
                                   <button
                                     aria-label={`Editar ${item.descripcion}`}
-                                    className="p-space-xs rounded-lg bg-surface-container-high hover:bg-primary-container hover:text-on-primary text-on-surface-variant transition-colors inline-flex items-center justify-center"
+                                    className={`w-8 h-8 rounded-xl transition-colors inline-flex items-center justify-center ${
+                                      isSelected
+                                        ? 'bg-white/15 text-white hover:bg-white/25'
+                                        : 'bg-[#F8FAFF] border border-[#E8EEF7] hover:bg-[#0E4BFF] hover:text-white hover:border-[#0E4BFF] text-[#64748B]'
+                                    }`}
                                     onClick={() => onEditItem(item)}
                                     title="Editar Artículo"
                                     type="button"
@@ -1060,7 +1184,11 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                                 {onDeleteItem && (
                                   <button
                                     aria-label={`Eliminar ${item.descripcion}`}
-                                    className="p-space-xs rounded-lg bg-error-container/40 hover:bg-error hover:text-on-error text-error transition-colors inline-flex items-center justify-center"
+                                    className={`w-8 h-8 rounded-xl transition-colors inline-flex items-center justify-center ${
+                                      isSelected
+                                        ? 'bg-white/15 text-white hover:bg-red-500'
+                                        : 'bg-red-50 border border-red-200/60 hover:bg-red-600 hover:text-white text-red-600'
+                                    }`}
                                     onClick={() => onDeleteItem(item)}
                                     title="Eliminar Artículo"
                                     type="button"
@@ -1080,12 +1208,12 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
             </div>
 
             {/* Table Footer */}
-            <div className="px-space-lg py-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-md">
-              <div className="font-label-sm text-label-sm text-on-surface-variant tabular-nums">
-                Mostrando <span className="font-semibold text-on-surface">{filteredItems.length}</span> de{' '}
-                <span className="font-semibold text-on-surface">{items.length}</span> artículos registrados en SQLite
+            <div className="px-4 pt-3 mt-1 border-t border-[#F1F5FD] flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="font-label-sm text-label-sm text-[#64748B] tabular-nums">
+                Mostrando <span className="font-semibold text-[#182034]">{filteredItems.length}</span> de{' '}
+                <span className="font-semibold text-[#182034]">{items.length}</span> artículos registrados en SQLite
               </div>
-              <div className="font-code-mono text-[11px] text-on-surface-variant">
+              <div className="font-code-mono text-[11px] text-[#94A3B8]">
                 Sincronización directa · tienda_data.db
               </div>
             </div>

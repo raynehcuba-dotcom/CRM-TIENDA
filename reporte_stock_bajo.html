@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Reporte de Stock Bajo — Gestor Tienda</title>
+  <meta name="description" content="Sistema local de gestión de ventas (TPV), inventario, proveedores, caja chica y cuadre semanal para tienda."/>
+  <meta property="og:title" content="Reporte de Stock Bajo — Gestor Tienda"/>
+  <meta property="og:description" content="Sistema local de gestión de ventas (TPV), inventario, proveedores, caja chica y cuadre semanal para tienda."/>
+  <meta content="web_dashboard" name="shell-type"/>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600;700&amp;family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+  <style>
+    @layer base {
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        background-color: #FFFFFF;
+        color: #182034;
+        overscroll-behavior: none;
+      }
+      h1, h2, h3, h4, .font-headline, .gt-brand-title {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+      }
+      main > :first-child { margin-top: 0 !important; }
+      main > :last-child { margin-bottom: 0 !important; }
+    }
+    ::-webkit-scrollbar { display: none; }
+    aside.gt-sidebar {
+      background: linear-gradient(180deg, #1350FF 0%, #0E4BFF 58%, #0A40EB 100%);
+    }
+    .gt-nav-active {
+      background: #FFFFFF !important;
+      color: #0E4BFF !important;
+      font-weight: 700 !important;
+      border-radius: 9999px 0 0 9999px !important;
+      position: relative;
+      box-shadow: -4px 6px 18px rgba(0, 0, 0, 0.08);
+    }
+    .gt-nav-active::before,
+    .gt-nav-active::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+    }
+    .gt-nav-active::before {
+      top: -18px;
+      background: radial-gradient(circle at 0 0, transparent 18px, #FFFFFF 18.5px);
+    }
+    .gt-nav-active::after {
+      bottom: -18px;
+      background: radial-gradient(circle at 0 100%, transparent 18px, #FFFFFF 18.5px);
+    }
+    
+    @page {
+      size: letter portrait;
+      margin: 12mm;
+    }
+    @media print {
+      html, body {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      aside,
+      header.gt-app-header,
+      .no-print {
+        display: none !important;
+      }
+      .gt-app-shell {
+        padding-left: 0 !important;
+        min-height: auto !important;
+      }
+      main.gt-app-main {
+        padding: 0 !important;
+        min-height: auto !important;
+        background: #ffffff !important;
+      }
+      table {
+        page-break-inside: auto;
+      }
+      thead {
+        display: table-header-group;
+      }
+      tfoot {
+        display: table-row-group;
+      }
+      tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+
+  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary-container": "#0E4BFF",
+            "surface-dim": "#DCE6FF",
+            "background": "#FFFFFF",
+            "primary": "#0E4BFF",
+            "surface": "#FFFFFF",
+            "on-tertiary-container": "#FFFFFF",
+            "on-secondary-container": "#475569",
+            "on-primary-container": "#FFFFFF",
+            "outline-variant": "#E8EEF7",
+            "surface-container-highest": "#DCE6FF",
+            "on-error-container": "#991B1B",
+            "on-tertiary-fixed": "#0A40EB",
+            "on-tertiary": "#FFFFFF",
+            "surface-bright": "#FFFFFF",
+            "surface-container-low": "#F8FAFF",
+            "on-secondary-fixed": "#182034",
+            "primary-fixed": "#DCE6FF",
+            "inverse-surface": "#182034",
+            "on-surface-variant": "#64748B",
+            "error-container": "#FEE2E2",
+            "surface-container": "#F1F5FD",
+            "surface-variant": "#E5ECFF",
+            "on-primary-fixed-variant": "#0A40EB",
+            "inverse-on-surface": "#FFFFFF",
+            "on-primary-fixed": "#0E4BFF",
+            "surface-container-lowest": "#FFFFFF",
+            "secondary-fixed": "#E5ECFF",
+            "surface-tint": "#0E4BFF",
+            "tertiary-container": "#1350FF",
+            "on-surface": "#182034",
+            "surface-container-high": "#E5ECFF",
+            "tertiary-fixed": "#DCE6FF",
+            "secondary-container": "#F1F5FD",
+            "on-background": "#182034",
+            "primary-fixed-dim": "#B7C9FF",
+            "secondary": "#64748B",
+            "on-secondary": "#FFFFFF",
+            "on-primary": "#FFFFFF",
+            "on-tertiary-fixed-variant": "#0A40EB",
+            "secondary-fixed-dim": "#CBD5E1",
+            "tertiary": "#0A40EB",
+            "outline": "#94A3B8",
+            "tertiary-fixed-dim": "#B7C9FF",
+            "on-error": "#FFFFFF",
+            "on-secondary-fixed-variant": "#475569",
+            "error": "#DC2626",
+            "inverse-primary": "#7DA4FF"
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "0.75rem",
+            "xl": "1rem",
+            "2xl": "1.25rem",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-md": "0.75rem",
+            "gutter-dense": "0.5rem",
+            "space-lg": "1rem",
+            "space-sm": "0.5rem",
+            "space-2xl": "2rem",
+            "space-xs": "0.25rem",
+            "space-xl": "1.5rem",
+            "margin": "1.5rem",
+            "gutter": "1rem",
+            "margin-compact": "1rem"
+          },
+          fontFamily: {
+            "headline-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "display-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-sm": ["Plus Jakarta Sans", "sans-serif"],
+            "display-md": ["Plus Jakarta Sans", "sans-serif"],
+            "headline": ["Plus Jakarta Sans", "sans-serif"],
+            "display": ["Plus Jakarta Sans", "sans-serif"],
+            "code-mono": ["JetBrains Mono", "monospace"],
+            "label-md": ["DM Sans", "sans-serif"],
+            "body-md": ["DM Sans", "sans-serif"],
+            "label-sm": ["DM Sans", "sans-serif"],
+            "body-bold": ["DM Sans", "sans-serif"],
+            "body-lg": ["DM Sans", "sans-serif"],
+            "sans": ["DM Sans", "sans-serif"]
+          },
+          fontSize: {
+            "headline-lg": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+            "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+            "code-mono": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "label-md": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "headline-sm": ["16px", { "lineHeight": "24px", "letterSpacing": "-0.005em", "fontWeight": "700" }],
+            "display-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "700" }],
+            "body-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-white font-body-md text-body-md text-[#182034] antialiased">
+  <aside class="gt-sidebar fixed left-0 top-0 h-screen w-64 flex flex-col z-50 text-white print:hidden">
+    <div class="px-6 pt-7 pb-5 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-[20px] text-white">storefront</span>
+      </div>
+      <div class="flex flex-col min-w-0">
+        <span class="gt-brand-title text-[20px] font-extrabold tracking-tight text-white leading-tight truncate">Gestor Tienda</span>
+        <span class="text-[11px] font-medium text-white/70 truncate">Tienda Central · Local</span>
+      </div>
+    </div>
+    <nav class="flex-1 pl-4 pr-0 py-2 flex flex-col gap-1 overflow-y-auto overflow-x-hidden">
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="dashboard" href="/dashboard">
+        <span class="material-symbols-outlined text-[20px] text-white/85">grid_view</span>
+        <span class="flex-1 truncate font-headline">Dashboard</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="ventas-tpv" href="/pos">
+        <span class="material-symbols-outlined text-[20px] text-white/85">shopping_cart</span>
+        <span class="flex-1 truncate font-headline">Ventas (TPV)</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="inventario" href="/inventario">
+        <span class="material-symbols-outlined text-[20px] text-white/85">inventory_2</span>
+        <span class="flex-1 truncate font-headline">Inventario</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="proveedores" href="/proveedores">
+        <span class="material-symbols-outlined text-[20px] text-white/85">local_shipping</span>
+        <span class="flex-1 truncate font-headline">Proveedores</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="caja-chica" href="/caja-chica">
+        <span class="material-symbols-outlined text-[20px] text-white/85">account_balance_wallet</span>
+        <span class="flex-1 truncate font-headline">Caja Chica</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="cierre-caja" href="/cierre-caja">
+        <span class="material-symbols-outlined text-[20px] text-white/85">point_of_sale</span>
+        <span class="flex-1 truncate font-headline">Cierre de Caja</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="cuadre" href="/cuadre">
+        <span class="material-symbols-outlined text-[20px] text-white/85">insights</span>
+        <span class="flex-1 truncate font-headline">Cuadre Semanal</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="clientes" href="/clientes">
+        <span class="material-symbols-outlined text-[20px] text-white/85">groups</span>
+        <span class="flex-1 truncate font-headline">Clientes</span>
+      </a>
+      <a class="gt-nav-active flex items-center gap-3.5 pl-4 pr-5 py-2.5 text-[14px] transition-all" data-path="reportes" href="/reportes">
+        <span class="material-symbols-outlined text-[20px] text-[#0E4BFF]">bar_chart</span>
+        <span class="flex-1 truncate font-headline">Reportes</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="mantenimiento" href="/mantenimiento">
+        <span class="material-symbols-outlined text-[20px] text-white/85">settings</span>
+        <span class="flex-1 truncate font-headline">Mantenimiento</span>
+      </a>
+    </nav>
+    <div class="px-6 py-4 border-t border-white/15 flex items-center justify-between text-[11px] text-white/70">
+      <span class="inline-flex items-center gap-1.5 truncate">
+        <span class="w-2 h-2 rounded-full bg-emerald-300 shrink-0"></span>
+        <span>SQLite Local</span>
+      </span>
+      <span class="font-code-mono">v1.0</span>
+    </div>
+  </aside>
+  <div class="gt-app-shell pl-64 print:pl-0 flex flex-col min-h-screen bg-white">
+    <header class="gt-app-header print:hidden fixed top-0 left-64 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-[#E8EEF7] z-40 px-8 flex items-center justify-between">
+      <div class="flex flex-col min-w-0">
+        <h1 class="font-headline text-[20px] font-bold tracking-tight text-[#182034] leading-tight truncate">Reporte de Stock Bajo</h1>
+        <p class="text-[12px] text-[#64748B] truncate">Vista imprimible bajo umbral mínimo</p>
+      </div>
+      <div class="flex items-center gap-2.5 shrink-0">
+        <button aria-label="Alertas de stock bajo" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" id="gt-header-alerts-btn" onclick="window.dispatchEvent(new CustomEvent('stock-alert-monitor:toggle'))" title="Alertas de Stock" type="button">
+          <span class="material-symbols-outlined text-[19px]">notifications</span>
+        </button>
+        <button aria-label="Resumen Operativo del Día" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" id="gt-header-daily-summary-btn" onclick="window.dispatchEvent(new CustomEvent('daily-summary:open'))" title="Resumen del Día" type="button">
+          <span class="material-symbols-outlined text-[19px]">summarize</span>
+        </button>
+        <a aria-label="Reporte imprimible de stock bajo" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" href="/reporte-stock-bajo" title="Reporte Imprimible de Stock Bajo">
+          <span class="material-symbols-outlined text-[19px]">print</span>
+        </a>
+        <span class="hidden sm:inline-flex items-center px-3 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] font-code-mono text-[12px] font-bold text-[#182034]">CUP</span>
+      </div>
+    </header>
+
+    <main class="gt-app-main print:pt-0 print:px-0 w-full pt-20 bg-white min-h-screen px-8 pb-12">
+      <div id="low-stock-report-root"></div>
+    </main>
+  </div>
+
+  <script type="module" src="/assets/low-stock-report-app.js"></script>
+</body>
+</html>

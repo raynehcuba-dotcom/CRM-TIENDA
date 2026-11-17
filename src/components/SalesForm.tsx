@@ -388,18 +388,18 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-12 gap-space-lg items-start">
+    <div className="grid grid-cols-12 gap-5 items-start">
       {/* Left Column: Inventory Catalog Selection */}
-      <section className="col-span-12 lg:col-span-7 flex flex-col gap-space-md">
-        <div className="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col gap-space-sm">
-          <div className="flex items-center gap-space-sm">
+      <section className="col-span-12 lg:col-span-7 flex flex-col gap-4">
+        <div className="bg-white px-5 pt-5 pb-0 rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col gap-3.5">
+          <div className="flex items-center gap-2.5">
             <div className="relative flex-1">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
+              <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8] text-[20px]">
                 search
               </span>
               <input
                 aria-label="Buscar producto del inventario para vender"
-                className="w-full h-10 pl-10 pr-24 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/30 placeholder:text-outline"
+                className="w-full h-10 pl-10 pr-24 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7] text-[#182034] font-body-md text-body-md focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E4BFF]/25 placeholder:text-[#94A3B8] transition-all"
                 id="product-search-input"
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -426,31 +426,31 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               {searchQuery ? (
                 <button
                   aria-label="Limpiar búsqueda de catálogo"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded text-on-surface-variant hover:text-on-surface"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-[#64748B] hover:text-[#182034]"
                   onClick={() => setSearchQuery('')}
                   type="button"
                 >
                   <span className="material-symbols-outlined text-[18px]">close</span>
                 </button>
               ) : (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-code-mono text-[11px] bg-surface-container px-2 py-0.5 rounded text-on-surface-variant font-semibold pointer-events-none">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-code-mono text-[11px] bg-white border border-[#E8EEF7] px-2 py-0.5 rounded-lg text-[#64748B] font-semibold pointer-events-none">
                   Atajo F2
                 </span>
               )}
             </div>
             <button
-              className="h-10 px-space-md bg-surface-container hover:bg-surface-container-high text-on-surface rounded-lg font-label-md text-label-md flex items-center gap-space-xs transition-colors shrink-0"
+              className="h-10 px-4 bg-white border border-[#E8EEF7] hover:bg-[#F8FAFF] text-[#182034] rounded-xl font-label-md text-label-md font-semibold flex items-center gap-1.5 transition-colors shrink-0"
               onClick={() => void fetchCatalogAndShift()}
               title="Sincronizar stock desde SQLite"
               type="button"
             >
-              <span className="material-symbols-outlined text-[18px]">refresh</span>
+              <span className="material-symbols-outlined text-[18px] text-[#64748B]">refresh</span>
               <span className="hidden sm:inline">Sincronizar</span>
             </button>
           </div>
 
-          {/* Category Filter Tabs */}
-          <div className="flex items-center gap-space-xs overflow-x-auto pb-1 text-label-md font-label-md">
+          {/* Underline Category Filter Tabs */}
+          <div className="flex items-center gap-6 overflow-x-auto border-t border-[#F1F5FD] pt-1 -mb-px text-label-md font-label-md">
             {(
               [
                 { key: 'TODOS', label: `Todos (${products.length})` },
@@ -463,10 +463,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               const active = catalogFilter === tab.key;
               return (
                 <button
-                  className={`px-space-md py-1.5 rounded-lg shrink-0 transition-colors whitespace-nowrap ${
+                  className={`py-3 border-b-2 shrink-0 transition-all whitespace-nowrap ${
                     active
-                      ? 'bg-primary-container text-on-primary font-bold shadow-sm'
-                      : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                      ? 'border-[#0E4BFF] text-[#182034] font-semibold'
+                      : 'border-transparent text-[#94A3B8] hover:text-[#182034] font-medium'
                   }`}
                   key={tab.key}
                   onClick={() => setCatalogFilter(tab.key)}
@@ -481,11 +481,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
         {/* Catalog Grid */}
         {loadError ? (
-          <div className="bg-surface-container-lowest p-space-xl rounded-xl text-center flex flex-col items-center gap-space-sm">
-            <span className="material-symbols-outlined text-error text-[32px]">error_outline</span>
-            <p className="font-body-md text-body-md text-on-surface">{loadError}</p>
+          <div className="bg-white border border-[#E8EEF7] p-8 rounded-2xl text-center flex flex-col items-center gap-3">
+            <span className="material-symbols-outlined text-red-600 text-[32px]">error_outline</span>
+            <p className="font-body-md text-body-md text-[#182034]">{loadError}</p>
             <button
-              className="px-space-md h-9 rounded-lg bg-primary text-on-primary font-label-sm font-semibold"
+              className="px-4 h-9 rounded-xl bg-[#0E4BFF] text-white font-label-sm font-semibold"
               onClick={() => void fetchCatalogAndShift()}
               type="button"
             >
@@ -493,20 +493,20 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             </button>
           </div>
         ) : loading && products.length === 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-space-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
             {Array.from({ length: 8 }).map((_, idx) => (
               <div
-                className="h-32 rounded-xl bg-surface-container-lowest animate-pulse"
+                className="h-32 rounded-2xl bg-white border border-[#E8EEF7] animate-pulse"
                 key={`pos-skel-${idx}`}
               />
             ))}
           </div>
         ) : filteredCatalog.length === 0 ? (
-          <div className="bg-surface-container-lowest p-space-xl rounded-xl text-center text-on-surface-variant">
+          <div className="bg-white border border-[#E8EEF7] p-8 rounded-2xl text-center text-[#64748B]">
             No hay artículos que coincidan con el filtro actual.
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-space-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredCatalog.map((item) => {
               const stock = Number(item.stock_actual);
               const min = Number(item.stock_minimo);
@@ -518,30 +518,30 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               if (isOut) {
                 return (
                   <div
-                    className="bg-surface-container-lowest p-space-sm rounded-xl shadow-sm opacity-60 flex flex-col justify-between cursor-not-allowed select-none text-left"
+                    className="bg-white border border-[#E8EEF7] p-3.5 rounded-2xl opacity-60 flex flex-col justify-between cursor-not-allowed select-none text-left"
                     key={item.id}
                   >
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center justify-between gap-1">
-                        <span className="font-code-mono text-[10px] text-on-surface-variant truncate">
+                        <span className="font-code-mono text-[10px] text-[#94A3B8] truncate">
                           {item.sku}
                         </span>
-                        <span className="font-label-sm text-[11px] font-bold text-error shrink-0">
+                        <span className="font-label-sm text-[11px] font-bold text-red-600 shrink-0">
                           Agotado
                         </span>
                       </div>
-                      <h4 className="font-body-bold text-body-bold text-on-surface line-clamp-2 mt-1">
+                      <h4 className="font-body-bold text-body-bold text-[#182034] line-clamp-2 mt-1">
                         {item.descripcion}
                       </h4>
-                      <span className="font-label-sm text-label-sm text-on-surface-variant truncate">
+                      <span className="font-label-sm text-label-sm text-[#64748B] truncate">
                         {item.categoria_nombre || 'General'}
                       </span>
                     </div>
-                    <div className="mt-3 pt-2 bg-surface-container-low rounded-lg p-2 flex items-center justify-between">
-                      <span className="font-code-mono tabular-nums text-headline-sm text-on-surface-variant font-bold">
+                    <div className="mt-3 bg-[#F8FAFF] border border-[#E8EEF7] rounded-xl p-2 flex items-center justify-between">
+                      <span className="font-code-mono tabular-nums text-headline-sm text-[#64748B] font-bold">
                         ${formatMoney(price)}
                       </span>
-                      <span className="material-symbols-outlined text-outline text-[20px]">block</span>
+                      <span className="material-symbols-outlined text-[#CBD5E1] text-[20px]">block</span>
                     </div>
                   </div>
                 );
@@ -549,8 +549,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
               return (
                 <button
-                  className={`bg-surface-container-lowest p-space-sm rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between text-left group ${
-                    inCart ? 'ring-2 ring-primary' : ''
+                  className={`bg-white p-3.5 rounded-2xl border transition-all flex flex-col justify-between text-left group ${
+                    inCart
+                      ? 'border-[#0E4BFF] ring-2 ring-[#0E4BFF]/25 shadow-[0_8px_20px_rgba(14,75,255,0.12)]'
+                      : 'border-[#E8EEF7] shadow-[0_2px_10px_rgba(15,23,42,0.03)] hover:border-[#0E4BFF]/40 hover:shadow-[0_6px_18px_rgba(14,75,255,0.08)]'
                   }`}
                   key={item.id}
                   onClick={() => addProductWithQty(item, 1)}
@@ -558,30 +560,30 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 >
                   <div className="flex flex-col gap-1 w-full">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="font-code-mono text-[10px] text-on-surface-variant truncate">
+                      <span className="font-code-mono text-[10px] text-[#94A3B8] truncate">
                         {item.sku}
                       </span>
                       <span
                         className={`font-code-mono tabular-nums text-[11px] font-bold shrink-0 ${
-                          isLow ? 'text-amber-800' : 'text-primary'
+                          isLow ? 'text-amber-700' : 'text-[#0E4BFF]'
                         }`}
                       >
                         {stock} u.
                       </span>
                     </div>
-                    <h4 className="font-body-bold text-body-bold text-on-surface group-hover:text-primary transition-colors line-clamp-2 mt-1">
+                    <h4 className="font-body-bold text-body-bold text-[#182034] group-hover:text-[#0E4BFF] transition-colors line-clamp-2 mt-1">
                       {item.descripcion}
                     </h4>
-                    <span className="font-label-sm text-label-sm text-on-surface-variant truncate">
+                    <span className="font-label-sm text-label-sm text-[#64748B] truncate">
                       {item.categoria_nombre || 'General'}
                       {inCart ? ` · En ticket: ${inCart.cantidad}` : ''}
                     </span>
                   </div>
-                  <div className="mt-3 w-full bg-surface-container-low rounded-lg p-2 flex items-center justify-between">
-                    <span className="font-code-mono tabular-nums text-headline-sm text-primary font-bold">
+                  <div className="mt-3 w-full bg-[#F8FAFF] group-hover:bg-[#EEF3FF] rounded-xl p-2 flex items-center justify-between transition-colors">
+                    <span className="font-code-mono tabular-nums text-headline-sm text-[#0E4BFF] font-bold">
                       ${formatMoney(price)}
                     </span>
-                    <span className="material-symbols-outlined text-primary text-[20px]">
+                    <span className="material-symbols-outlined text-[#0E4BFF] text-[20px]">
                       add_circle
                     </span>
                   </div>
@@ -591,33 +593,33 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           </div>
         )}
 
-        <div className="bg-surface-container-low p-space-md rounded-xl flex items-center justify-between text-on-surface-variant text-label-md">
-          <div className="flex items-center gap-space-sm">
-            <span className="material-symbols-outlined text-primary text-[20px]">storage</span>
+        <div className="bg-[#F8FAFF] border border-[#E8EEF7] p-4 rounded-2xl flex items-center justify-between text-[#64748B] text-label-md">
+          <div className="flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-[#0E4BFF] text-[20px]">storage</span>
             <span>
-              Despacho sincronizado con <strong>tienda_data.db</strong> · Cada venta descuenta existencias automáticamente en SQLite.
+              Despacho sincronizado con <strong className="text-[#182034]">tienda_data.db</strong> · Cada venta descuenta existencias automáticamente en SQLite.
             </span>
           </div>
-          <span className="font-code-mono text-[11px] text-on-surface font-semibold shrink-0 tabular-nums">
+          <span className="font-code-mono text-[11px] text-[#182034] font-semibold shrink-0 tabular-nums">
             {products.length} SKUs
           </span>
         </div>
       </section>
 
       {/* Right Column: Interactive Sales Form */}
-      <section className="col-span-12 lg:col-span-5 flex flex-col gap-space-md">
+      <section className="col-span-12 lg:col-span-5 flex flex-col gap-4">
         <form
-          className="bg-surface-container-lowest rounded-xl shadow-md p-space-md flex flex-col gap-space-md"
+          className="bg-white rounded-2xl border border-[#E8EEF7] shadow-[0_4px_20px_rgba(15,23,42,0.04)] p-5 flex flex-col gap-4"
           id="sales-entry-form"
           onSubmit={handleRecordSale}
         >
           {/* Header */}
-          <div className="flex items-center justify-between pb-space-xs">
+          <div className="flex items-center justify-between pb-2 border-b border-[#F1F5FD]">
             <div className="flex flex-col">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              <span className="font-label-sm text-label-sm text-[#64748B] uppercase tracking-wider font-semibold">
                 Formulario de Venta
               </span>
-              <span className="font-headline-sm text-headline-sm text-primary font-bold font-code-mono tabular-nums">
+              <span className="font-headline-sm text-headline-sm text-[#0E4BFF] font-bold font-code-mono tabular-nums">
                 {cart.length > 0
                   ? `Orden Activa (${totals.totalUnits} u.)`
                   : lastReceipt
@@ -626,7 +628,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               </span>
             </div>
             <button
-              className="px-space-sm h-8 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface-variant font-label-sm text-label-sm inline-flex items-center gap-1 transition-colors"
+              className="px-3 h-8 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7] hover:bg-[#F1F5FD] text-[#64748B] hover:text-[#182034] font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 transition-colors"
               onClick={resetSaleForm}
               title="Limpiar formulario de venta"
               type="button"
@@ -637,16 +639,16 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           </div>
 
           {/* Direct Form Item Selector */}
-          <div className="p-space-sm rounded-lg bg-surface-container-low flex flex-col gap-space-xs">
+          <div className="p-3.5 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7] flex flex-col gap-2">
             <label
-              className="font-label-sm text-label-sm text-on-surface font-semibold"
+              className="font-label-sm text-label-sm text-[#182034] font-semibold"
               htmlFor="sales-item-select"
             >
               Seleccionar Artículo de Inventario
             </label>
-            <div className="flex items-center gap-space-xs">
+            <div className="flex items-center gap-2">
               <select
-                className="flex-1 min-w-0 h-9 px-space-sm rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-label-md focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="flex-1 min-w-0 h-9 px-3 rounded-xl bg-white border border-[#E8EEF7] text-[#182034] font-body-md text-label-md focus:outline-none focus:ring-2 focus:ring-[#0E4BFF]/25"
                 disabled={availableProducts.length === 0}
                 id="sales-item-select"
                 onChange={(e) => setPickerProductId(e.target.value)}
@@ -665,7 +667,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
               <input
                 aria-label="Cantidad a agregar"
-                className="w-16 h-9 px-2 rounded-lg bg-surface-container-lowest text-on-surface font-code-mono tabular-nums text-label-md text-center focus:outline-none focus:ring-2 focus:ring-primary/30 shrink-0"
+                className="w-16 h-9 px-2 rounded-xl bg-white border border-[#E8EEF7] text-[#182034] font-code-mono tabular-nums text-label-md text-center focus:outline-none focus:ring-2 focus:ring-[#0E4BFF]/25 shrink-0"
                 min={1}
                 onChange={(e) => setPickerQty(e.target.value)}
                 type="number"
@@ -673,7 +675,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
               />
 
               <button
-                className="h-9 px-space-sm rounded-lg bg-primary-container hover:bg-primary text-on-primary font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50"
+                className="h-9 px-3 rounded-xl bg-[#0E4BFF] hover:bg-[#0B3EDB] text-white font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 transition-colors shrink-0 disabled:opacity-50"
                 disabled={availableProducts.length === 0}
                 onClick={handlePickerAdd}
                 type="button"
@@ -685,20 +687,20 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           </div>
 
           {/* Customer Selector */}
-          <div className="bg-surface-container-low p-space-sm rounded-lg flex items-center justify-between gap-space-sm">
-            <div className="flex items-center gap-space-sm min-w-0">
-              <span className="material-symbols-outlined text-on-surface-variant text-[20px]">
+          <div className="bg-[#F8FAFF] border border-[#E8EEF7] p-3 rounded-xl flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="material-symbols-outlined text-[#64748B] text-[20px]">
                 person
               </span>
               <label
-                className="font-label-md text-label-md text-on-surface font-semibold truncate"
+                className="font-label-md text-label-md text-[#182034] font-semibold truncate"
                 htmlFor="sales-client-select"
               >
                 Cliente
               </label>
             </div>
             <select
-              className="px-space-sm h-8 rounded bg-surface-container-lowest text-on-surface font-label-sm text-label-sm font-semibold focus:outline-none max-w-[200px]"
+              className="px-3 h-8 rounded-lg bg-white border border-[#E8EEF7] text-[#182034] font-label-sm text-label-sm font-semibold focus:outline-none max-w-[200px]"
               id="sales-client-select"
               onChange={(e) => setSelectedClientId(e.target.value)}
               value={selectedClientId}
@@ -713,27 +715,27 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           </div>
 
           {/* Line Items List */}
-          <div className="flex flex-col gap-space-xs max-h-[240px] overflow-y-auto pr-1">
+          <div className="flex flex-col gap-2 max-h-[240px] overflow-y-auto pr-1">
             {cart.length === 0 ? (
-              <div className="p-space-md bg-surface-container-low rounded-lg text-center text-on-surface-variant text-label-md">
+              <div className="p-4 bg-[#F8FAFF] border border-dashed border-[#E8EEF7] rounded-xl text-center text-[#64748B] text-label-md">
                 Selecciona productos del catálogo o usa el selector superior para armar la venta.
               </div>
             ) : (
               cart.map((line) => (
                 <div
-                  className="flex items-center justify-between p-space-xs bg-surface-container-low rounded-lg gap-space-sm"
+                  className="flex items-center justify-between p-2.5 bg-[#F8FAFF] border border-[#E8EEF7] rounded-xl gap-2"
                   key={line.producto_id}
                 >
                   <div className="flex flex-col flex-1 min-w-0">
-                    <span className="font-body-bold text-body-bold text-on-surface truncate">
+                    <span className="font-body-bold text-body-bold text-[#182034] truncate">
                       {line.descripcion}
                     </span>
-                    <div className="flex items-center gap-1.5 text-on-surface-variant font-code-mono tabular-nums text-[12px]">
+                    <div className="flex items-center gap-1.5 text-[#64748B] font-code-mono tabular-nums text-[12px]">
                       <span>
                         {line.cantidad} × ${formatMoney(line.precio_unitario)}
                       </span>
                       <span>=</span>
-                      <span className="font-semibold text-on-surface">
+                      <span className="font-semibold text-[#182034]">
                         ${formatMoney(line.cantidad * line.precio_unitario)} CUP
                       </span>
                       <span aria-hidden="true">·</span>
@@ -743,7 +745,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       aria-label={`Disminuir cantidad de ${line.descripcion}`}
-                      className="w-7 h-7 rounded bg-surface-container flex items-center justify-center font-bold text-on-surface hover:bg-surface-container-high"
+                      className="w-7 h-7 rounded-lg bg-white border border-[#E8EEF7] flex items-center justify-center font-bold text-[#182034] hover:bg-[#EEF3FF]"
                       onClick={() => updateLineQty(line.producto_id, line.cantidad - 1)}
                       type="button"
                     >
@@ -751,7 +753,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     </button>
                     <input
                       aria-label={`Cantidad de ${line.descripcion}`}
-                      className="w-12 h-7 rounded bg-surface-container-lowest text-center font-code-mono tabular-nums text-body-bold text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-12 h-7 rounded-lg bg-white border border-[#E8EEF7] text-center font-code-mono tabular-nums text-body-bold text-[#182034] focus:outline-none focus:ring-2 focus:ring-[#0E4BFF]/25"
                       max={line.stock_disponible}
                       min={1}
                       onChange={(e) => {
@@ -765,7 +767,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     />
                     <button
                       aria-label={`Aumentar cantidad de ${line.descripcion}`}
-                      className="w-7 h-7 rounded bg-surface-container flex items-center justify-center font-bold text-on-surface hover:bg-surface-container-high"
+                      className="w-7 h-7 rounded-lg bg-white border border-[#E8EEF7] flex items-center justify-center font-bold text-[#182034] hover:bg-[#EEF3FF]"
                       onClick={() => updateLineQty(line.producto_id, line.cantidad + 1)}
                       type="button"
                     >
@@ -773,7 +775,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                     </button>
                     <button
                       aria-label={`Quitar ${line.descripcion}`}
-                      className="w-7 h-7 rounded text-error hover:bg-error-container/40 flex items-center justify-center ml-0.5"
+                      className="w-7 h-7 rounded-lg text-red-600 hover:bg-red-50 flex items-center justify-center ml-0.5"
                       onClick={() => removeLine(line.producto_id)}
                       type="button"
                     >
@@ -786,19 +788,19 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           </div>
 
           {/* Totals */}
-          <div className="bg-surface-container-low p-space-md rounded-xl flex flex-col gap-space-xs">
-            <div className="flex justify-between items-center text-on-surface-variant font-body-md text-body-md">
+          <div className="bg-[#F8FAFF] border border-[#E8EEF7] p-4 rounded-xl flex flex-col gap-2">
+            <div className="flex justify-between items-center text-[#64748B] font-body-md text-body-md">
               <span className="tabular-nums">Subtotal ({totals.totalUnits} u.)</span>
-              <span className="font-code-mono tabular-nums text-on-surface font-semibold">
+              <span className="font-code-mono tabular-nums text-[#182034] font-semibold">
                 ${formatMoney(totals.subtotal)} CUP
               </span>
             </div>
 
-            <div className="flex justify-between items-center text-on-surface-variant font-body-md text-body-md">
+            <div className="flex justify-between items-center text-[#64748B] font-body-md text-body-md">
               <label className="flex items-center gap-2" htmlFor="sales-discount-input">
                 <span>Descuento (%)</span>
                 <input
-                  className="w-16 h-7 px-2 rounded bg-surface-container-lowest text-on-surface font-code-mono tabular-nums text-[12px] text-right focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-16 h-7 px-2 rounded-lg bg-white border border-[#E8EEF7] text-[#182034] font-code-mono tabular-nums text-[12px] text-right focus:outline-none focus:ring-2 focus:ring-[#0E4BFF]/25"
                   id="sales-discount-input"
                   max={100}
                   min={0}
@@ -807,18 +809,18 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                   value={discountPct}
                 />
               </label>
-              <span className="font-code-mono tabular-nums text-on-surface font-semibold">
+              <span className="font-code-mono tabular-nums text-[#182034] font-semibold">
                 {totals.descuento > 0 ? `-$${formatMoney(totals.descuento)} CUP` : '$0.00 CUP'}
               </span>
             </div>
 
-            <div className="my-1 h-px bg-surface-variant" />
+            <div className="my-1 h-px bg-[#E8EEF7]" />
 
             <div className="flex justify-between items-end">
-              <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-bold">
+              <span className="font-label-sm text-label-sm text-[#64748B] uppercase tracking-wider font-bold">
                 Total a Cobrar
               </span>
-              <span className="font-display-md text-display-md text-primary font-bold font-code-mono tabular-nums">
+              <span className="font-display-md text-display-md text-[#0E4BFF] font-bold font-code-mono tabular-nums">
                 ${formatMoney(totals.totalNeto)}{' '}
                 <span className="text-body-md font-semibold">CUP</span>
               </span>
@@ -826,11 +828,11 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           </div>
 
           {/* Payment Method */}
-          <div className="flex flex-col gap-space-xs">
-            <span className="font-label-sm text-label-sm text-on-surface-variant uppercase font-bold tracking-wider">
+          <div className="flex flex-col gap-1.5">
+            <span className="font-label-sm text-label-sm text-[#64748B] uppercase font-bold tracking-wider">
               Método de Pago
             </span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {(
                 [
                   { method: 'EFECTIVO', label: 'Efectivo CUP', icon: 'payments' },
@@ -842,10 +844,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 const active = paymentLabel === opt.label;
                 return (
                   <button
-                    className={`py-2 px-1 rounded-lg font-label-sm text-label-sm flex flex-col items-center gap-1 transition-colors ${
+                    className={`py-2 px-1 rounded-xl font-label-sm text-label-sm flex flex-col items-center gap-1 border transition-colors ${
                       active
-                        ? 'bg-primary-container text-on-primary font-bold shadow-sm'
-                        : 'bg-surface-container-low text-on-surface hover:bg-surface-container'
+                        ? 'bg-[#0E4BFF] border-[#0E4BFF] text-white font-bold shadow-[0_4px_12px_rgba(14,75,255,0.22)]'
+                        : 'bg-[#F8FAFF] border-[#E8EEF7] text-[#182034] hover:bg-[#EEF3FF]'
                     }`}
                     key={opt.label}
                     onClick={() => {
@@ -866,20 +868,20 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           </div>
 
           {/* Cash Received & Change */}
-          <div className="grid grid-cols-2 gap-space-sm">
+          <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label
-                className="font-label-sm text-label-sm text-on-surface-variant"
+                className="font-label-sm text-label-sm text-[#64748B] font-semibold"
                 htmlFor="sales-cash-input"
               >
                 Monto Recibido (CUP)
               </label>
               <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-code-mono text-on-surface-variant font-bold">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-code-mono text-[#64748B] font-bold">
                   $
                 </span>
                 <input
-                  className="w-full h-10 pl-6 pr-2 rounded-lg bg-surface-container text-on-surface font-code-mono tabular-nums font-bold text-headline-sm focus:outline-none focus:bg-surface-container-low"
+                  className="w-full h-10 pl-7 pr-2.5 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7] text-[#182034] font-code-mono tabular-nums font-bold text-headline-sm focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0E4BFF]/25"
                   id="sales-cash-input"
                   min={0}
                   onChange={(e) => setCashReceived(e.target.value)}
@@ -892,16 +894,16 @@ export const SalesForm: React.FC<SalesFormProps> = ({
             </div>
 
             <div className="flex flex-col gap-1">
-              <span className="font-label-sm text-label-sm text-on-surface-variant">
+              <span className="font-label-sm text-label-sm text-[#64748B] font-semibold">
                 Cambio a Devolver
               </span>
-              <div className="h-10 rounded-lg bg-surface-container-high px-space-sm flex items-center justify-between">
-                <span className="font-label-sm text-label-sm text-primary font-semibold">
+              <div className="h-10 rounded-xl bg-[#EEF3FF] border border-[#DCE6FF] px-3 flex items-center justify-between">
+                <span className="font-label-sm text-label-sm text-[#0E4BFF] font-semibold">
                   Vuelto:
                 </span>
                 <span
                   className={`font-code-mono tabular-nums text-body-bold font-bold ${
-                    totals.faltante > 0 ? 'text-error' : 'text-primary'
+                    totals.faltante > 0 ? 'text-red-600' : 'text-[#0E4BFF]'
                   }`}
                 >
                   {totals.faltante > 0
@@ -915,7 +917,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           {/* Error Feedback */}
           {formError && (
             <div
-              className="p-space-sm rounded-lg bg-error-container text-on-error-container flex items-start gap-space-xs font-label-sm text-label-sm"
+              className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2 font-label-sm text-label-sm"
               role="alert"
             >
               <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
@@ -926,10 +928,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
           {/* Sale Success Confirmation with Updated SQLite Stocks */}
           {lastReceipt && (
             <div
-              className="p-space-md rounded-xl bg-[#ecfdf5] text-[#065f46] flex flex-col gap-space-xs"
+              className="p-4 rounded-xl bg-[#ecfdf5] border border-[#a7f3d0] text-[#065f46] flex flex-col gap-1.5"
               role="status"
             >
-              <div className="flex items-center justify-between gap-space-sm">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 font-body-bold text-body-bold">
                   <span className="material-symbols-outlined text-[18px]">check_circle</span>
                   <span>Venta {lastReceipt.folio_ticket} registrada</span>
@@ -956,7 +958,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
           {/* Submit */}
           <button
-            className="w-full h-12 bg-primary-container hover:bg-primary text-on-primary rounded-xl font-headline-sm text-headline-sm flex items-center justify-center gap-space-sm shadow-md transition-all active:scale-[0.99] disabled:opacity-60"
+            className="w-full h-12 bg-[#0E4BFF] hover:bg-[#0B3EDB] text-white rounded-xl font-headline-sm text-headline-sm font-semibold flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(14,75,255,0.28)] transition-all active:scale-[0.99] disabled:opacity-60"
             disabled={submitting || cart.length === 0}
             id="btn-confirm-sale"
             type="submit"

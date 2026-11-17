@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.gestortienda.desktop",
+  "productName": "Gestor Tienda",
+  "asar": true,
+  "directories": {
+    "output": "dist-win"
+  },
+  "files": [
+    "electron/**/*",
+    "dist-electron/**/*",
+    "package.json",
+    "!node_modules/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": ".",
+      "to": ".",
+      "filter": [
+        "*.html",
+        "assets/**/*",
+        "css/**/*"
+      ]
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "portable": {
+    "artifactName": "GestorTienda-Portable-${version}.exe"
+  }
+}
