@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Reportes — Gestor Tienda</title>
+  <meta name="description" content="Sistema local de gestión de ventas (TPV), inventario, proveedores, caja chica y cuadre semanal para tienda."/>
+  <meta property="og:title" content="Reportes — Gestor Tienda"/>
+  <meta property="og:description" content="Sistema local de gestión de ventas (TPV), inventario, proveedores, caja chica y cuadre semanal para tienda."/>
+  <meta content="web_dashboard" name="shell-type"/>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600;700&amp;family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+  <style>
+    @layer base {
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        background-color: #FFFFFF;
+        color: #182034;
+        overscroll-behavior: none;
+      }
+      h1, h2, h3, h4, .font-headline, .gt-brand-title {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+      }
+      main > :first-child { margin-top: 0 !important; }
+      main > :last-child { margin-bottom: 0 !important; }
+    }
+    ::-webkit-scrollbar { display: none; }
+    aside.gt-sidebar {
+      background: linear-gradient(180deg, #1350FF 0%, #0E4BFF 58%, #0A40EB 100%);
+    }
+    .gt-nav-active {
+      background: #FFFFFF !important;
+      color: #0E4BFF !important;
+      font-weight: 700 !important;
+      border-radius: 9999px 0 0 9999px !important;
+      position: relative;
+      box-shadow: -4px 6px 18px rgba(0, 0, 0, 0.08);
+    }
+    .gt-nav-active::before,
+    .gt-nav-active::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+    }
+    .gt-nav-active::before {
+      top: -18px;
+      background: radial-gradient(circle at 0 0, transparent 18px, #FFFFFF 18.5px);
+    }
+    .gt-nav-active::after {
+      bottom: -18px;
+      background: radial-gradient(circle at 0 100%, transparent 18px, #FFFFFF 18.5px);
+    }
+    
+  </style>
+  <script src="/assets/tailwind-cdn.js"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary-container": "#0E4BFF",
+            "surface-dim": "#DCE6FF",
+            "background": "#FFFFFF",
+            "primary": "#0E4BFF",
+            "surface": "#FFFFFF",
+            "on-tertiary-container": "#FFFFFF",
+            "on-secondary-container": "#475569",
+            "on-primary-container": "#FFFFFF",
+            "outline-variant": "#E8EEF7",
+            "surface-container-highest": "#DCE6FF",
+            "on-error-container": "#991B1B",
+            "on-tertiary-fixed": "#0A40EB",
+            "on-tertiary": "#FFFFFF",
+            "surface-bright": "#FFFFFF",
+            "surface-container-low": "#F8FAFF",
+            "on-secondary-fixed": "#182034",
+            "primary-fixed": "#DCE6FF",
+            "inverse-surface": "#182034",
+            "on-surface-variant": "#64748B",
+            "error-container": "#FEE2E2",
+            "surface-container": "#F1F5FD",
+            "surface-variant": "#E5ECFF",
+            "on-primary-fixed-variant": "#0A40EB",
+            "inverse-on-surface": "#FFFFFF",
+            "on-primary-fixed": "#0E4BFF",
+            "surface-container-lowest": "#FFFFFF",
+            "secondary-fixed": "#E5ECFF",
+            "surface-tint": "#0E4BFF",
+            "tertiary-container": "#1350FF",
+            "on-surface": "#182034",
+            "surface-container-high": "#E5ECFF",
+            "tertiary-fixed": "#DCE6FF",
+            "secondary-container": "#F1F5FD",
+            "on-background": "#182034",
+            "primary-fixed-dim": "#B7C9FF",
+            "secondary": "#64748B",
+            "on-secondary": "#FFFFFF",
+            "on-primary": "#FFFFFF",
+            "on-tertiary-fixed-variant": "#0A40EB",
+            "secondary-fixed-dim": "#CBD5E1",
+            "tertiary": "#0A40EB",
+            "outline": "#94A3B8",
+            "tertiary-fixed-dim": "#B7C9FF",
+            "on-error": "#FFFFFF",
+            "on-secondary-fixed-variant": "#475569",
+            "error": "#DC2626",
+            "inverse-primary": "#7DA4FF"
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "0.75rem",
+            "xl": "1rem",
+            "2xl": "1.25rem",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-md": "0.75rem",
+            "gutter-dense": "0.5rem",
+            "space-lg": "1rem",
+            "space-sm": "0.5rem",
+            "space-2xl": "2rem",
+            "space-xs": "0.25rem",
+            "space-xl": "1.5rem",
+            "margin": "1.5rem",
+            "gutter": "1rem",
+            "margin-compact": "1rem"
+          },
+          fontFamily: {
+            "headline-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "display-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-sm": ["Plus Jakarta Sans", "sans-serif"],
+            "display-md": ["Plus Jakarta Sans", "sans-serif"],
+            "headline": ["Plus Jakarta Sans", "sans-serif"],
+            "display": ["Plus Jakarta Sans", "sans-serif"],
+            "code-mono": ["JetBrains Mono", "monospace"],
+            "label-md": ["DM Sans", "sans-serif"],
+            "body-md": ["DM Sans", "sans-serif"],
+            "label-sm": ["DM Sans", "sans-serif"],
+            "body-bold": ["DM Sans", "sans-serif"],
+            "body-lg": ["DM Sans", "sans-serif"],
+            "sans": ["DM Sans", "sans-serif"]
+          },
+          fontSize: {
+            "headline-lg": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+            "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+            "code-mono": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "label-md": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "headline-sm": ["16px", { "lineHeight": "24px", "letterSpacing": "-0.005em", "fontWeight": "700" }],
+            "display-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "700" }],
+            "body-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+          }
+        }
+      }
+    };
+  </script>
+</head><body class="bg-white font-body-md text-body-md text-[#182034] antialiased"><aside class="gt-sidebar fixed left-0 top-0 h-screen w-64 flex flex-col z-50 text-white">
+    <div class="px-6 pt-7 pb-5 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-[20px] text-white">storefront</span>
+      </div>
+      <div class="flex flex-col min-w-0">
+        <span class="gt-brand-title text-[20px] font-extrabold tracking-tight text-white leading-tight truncate">Gestor Tienda</span>
+        <span class="text-[11px] font-medium text-white/70 truncate">Tienda Central · Local</span>
+      </div>
+    </div>
+    <nav class="flex-1 pl-4 pr-0 py-2 flex flex-col gap-1 overflow-y-auto overflow-x-hidden">
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="dashboard" href="/dashboard">
+        <span class="material-symbols-outlined text-[20px] text-white/85">grid_view</span>
+        <span class="flex-1 truncate font-headline">Dashboard</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="ventas-tpv" href="/pos">
+        <span class="material-symbols-outlined text-[20px] text-white/85">shopping_cart</span>
+        <span class="flex-1 truncate font-headline">Ventas (TPV)</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="inventario" href="/inventario">
+        <span class="material-symbols-outlined text-[20px] text-white/85">inventory_2</span>
+        <span class="flex-1 truncate font-headline">Inventario</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="proveedores" href="/proveedores">
+        <span class="material-symbols-outlined text-[20px] text-white/85">local_shipping</span>
+        <span class="flex-1 truncate font-headline">Proveedores</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="caja-chica" href="/caja-chica">
+        <span class="material-symbols-outlined text-[20px] text-white/85">account_balance_wallet</span>
+        <span class="flex-1 truncate font-headline">Caja Chica</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="cierre-caja" href="/cierre-caja">
+        <span class="material-symbols-outlined text-[20px] text-white/85">point_of_sale</span>
+        <span class="flex-1 truncate font-headline">Cierre de Caja</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="cuadre" href="/cuadre">
+        <span class="material-symbols-outlined text-[20px] text-white/85">insights</span>
+        <span class="flex-1 truncate font-headline">Cuadre Semanal</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="clientes" href="/clientes">
+        <span class="material-symbols-outlined text-[20px] text-white/85">groups</span>
+        <span class="flex-1 truncate font-headline">Clientes</span>
+      </a>
+      <a class="gt-nav-active flex items-center gap-3.5 pl-4 pr-5 py-2.5 text-[14px] transition-all" data-path="reportes" href="/reportes">
+        <span class="material-symbols-outlined text-[20px] text-[#0E4BFF]">bar_chart</span>
+        <span class="flex-1 truncate font-headline">Reportes</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="mantenimiento" href="/mantenimiento">
+        <span class="material-symbols-outlined text-[20px] text-white/85">settings</span>
+        <span class="flex-1 truncate font-headline">Mantenimiento</span>
+      </a>
+    </nav>
+    <div class="px-6 py-4 border-t border-white/15 flex items-center justify-between text-[11px] text-white/70">
+      <span class="inline-flex items-center gap-1.5 truncate">
+        <span class="w-2 h-2 rounded-full bg-emerald-300 shrink-0"></span>
+        <span>SQLite Local</span>
+      </span>
+      <span class="font-code-mono">v1.0</span>
+    </div>
+  </aside>
+  <div class="pl-64 flex flex-col min-h-screen bg-white"><header class="fixed top-0 left-64 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-[#E8EEF7] z-40 px-8 flex items-center justify-between">
+      <div class="flex flex-col min-w-0">
+        <h1 class="font-headline text-[20px] font-bold tracking-tight text-[#182034] leading-tight truncate">Reportes</h1>
+        <p class="text-[12px] text-[#64748B] truncate">Centro de reportes, libros y exportaciones</p>
+      </div>
+      <div class="flex items-center gap-2.5 shrink-0">
+        <button aria-label="Alertas de stock bajo" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" id="gt-header-alerts-btn" onclick="window.dispatchEvent(new CustomEvent('stock-alert-monitor:toggle'))" title="Alertas de Stock" type="button">
+          <span class="material-symbols-outlined text-[19px]">notifications</span>
+        </button>
+        <button aria-label="Resumen Operativo del Día" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" id="gt-header-daily-summary-btn" onclick="window.dispatchEvent(new CustomEvent('daily-summary:open'))" title="Resumen del Día" type="button">
+          <span class="material-symbols-outlined text-[19px]">summarize</span>
+        </button>
+        <a aria-label="Reporte imprimible de stock bajo" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" href="/reporte-stock-bajo" title="Reporte Imprimible de Stock Bajo">
+          <span class="material-symbols-outlined text-[19px]">print</span>
+        </a>
+        <span class="hidden sm:inline-flex items-center px-3 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] font-code-mono text-[12px] font-bold text-[#182034]">CUP</span>
+      </div>
+    </header><main class="w-full pt-20 bg-white min-h-screen px-8 pb-12"><div class="flex flex-col w-full gap-space-xl">
+<!-- 1. Encabezado de la página -->
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="font-display-md text-display-md text-on-surface">Centro de Reportes y Exportación Operativa</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">verified</span>
+          Auditoría Local
+        </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-4xl">
+        Generación de libros contables, cierres de caja (Arqueos X/Z), rotación de stock y márgenes de rentabilidad para auditoría fiscal y control de negocio.
+      </p>
+</div>
+<div class="flex items-center gap-space-sm self-start lg:self-center shrink-0">
+<button class="h-10 px-4 rounded bg-surface-container-lowest hover:bg-surface-container-low text-on-surface font-body-bold text-body-bold shadow-sm flex items-center gap-space-xs transition-colors" onclick="alert('Abriendo registro local: 12 archivos SQLite descargados en disco.')" type="button">
+<span class="material-symbols-outlined text-primary text-[20px]">folder_zip</span>
+<span>Historial de Descargas (12 archivos locales)</span>
+</button>
+<button class="h-10 px-4 rounded bg-primary-container hover:bg-primary text-on-primary font-body-bold text-body-bold shadow-sm flex items-center gap-space-xs transition-colors" onclick="alert('Generando lote fiscal consolidado del día en curso...')" type="button">
+<span class="material-symbols-outlined text-[20px]">bolt</span>
+<span>Exportar Reporte Rápido (Hoy)</span>
+</button>
+</div>
+</div>
+<!-- 2. Barra de Filtros y Configuración de Reporte -->
+<div class="flex flex-col bg-white rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] overflow-hidden">
+<!-- Pestañas de categoría de reporte -->
+<div class="flex items-center gap-space-xs px-space-lg pt-space-md bg-surface-container-low overflow-x-auto">
+<button class="px-space-md py-space-sm rounded-t-lg font-body-bold text-body-bold flex items-center gap-space-xs bg-surface-container-lowest text-primary shadow-sm" data-tab="ventas" type="button">
+<span class="material-symbols-outlined text-[18px]">receipt_long</span>
+<span>Ventas y Facturación</span>
+<span class="ml-1 w-2 h-2 rounded-full bg-primary"></span>
+</button>
+<button class="px-space-md py-space-sm rounded-t-lg font-body-bold text-body-bold flex items-center gap-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" data-tab="cierres" type="button">
+<span class="material-symbols-outlined text-[18px]">point_of_sale</span>
+<span>Cierres de Caja (Arqueo X/Z)</span>
+</button>
+<button class="px-space-md py-space-sm rounded-t-lg font-body-bold text-body-bold flex items-center gap-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" data-tab="inventario" type="button">
+<span class="material-symbols-outlined text-[18px]">inventory_2</span>
+<span>Inventario y Valoración</span>
+</button>
+<button class="px-space-md py-space-sm rounded-t-lg font-body-bold text-body-bold flex items-center gap-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" data-tab="margen" type="button">
+<span class="material-symbols-outlined text-[18px]">trending_up</span>
+<span>Margen y Rentabilidad</span>
+</button>
+<button class="px-space-md py-space-sm rounded-t-lg font-body-bold text-body-bold flex items-center gap-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" data-tab="mermas" type="button">
+<span class="material-symbols-outlined text-[18px]">rule</span>
+<span>Movimientos y Mermas</span>
+</button>
+</div>
+<!-- Controles de filtrado -->
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Presets de tiempo rápido -->
+<div class="flex flex-wrap items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Período:</span>
+<div class="inline-flex rounded bg-surface-container p-0.5">
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded text-on-surface-variant hover:text-on-surface" type="button">Hoy</button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded text-on-surface-variant hover:text-on-surface" type="button">Esta Semana</button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded bg-surface-container-lowest text-primary font-bold shadow-sm" type="button">Mes en Curso (Mayo 2025)</button>
+<button class="px-2.5 py-1 text-label-sm font-label-sm rounded text-on-surface-variant hover:text-on-surface" type="button">Personalizado</button>
+</div>
+</div>
+<div class="flex items-center gap-space-xs font-code-mono text-code-mono text-on-surface-variant bg-surface-container-low px-2 py-1 rounded">
+<span class="material-symbols-outlined text-[15px] text-primary">storage</span>
+<span>Motor: SQLite WAL / Tablas de ventas indexed</span>
+</div>
+</div>
+<!-- Filtros estructurados en 4 columnas -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md">
+<!-- Rango de fechas -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant">Rango de Fechas (Desde - Hasta)</label>
+<div class="flex items-center bg-surface-container-low rounded h-10 px-space-sm gap-space-xs">
+<span class="material-symbols-outlined text-[18px] text-secondary">calendar_today</span>
+<input class="bg-transparent w-24 font-code-mono text-code-mono text-on-surface focus:outline-none" type="text" value="01/05/2025"/>
+<span class="text-on-surface-variant font-bold">—</span>
+<input class="bg-transparent w-24 font-code-mono text-code-mono text-on-surface focus:outline-none" type="text" value="25/05/2025"/>
+</div>
+</div>
+<!-- Terminal / Turno -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant">Terminal / Turno TPV</label>
+<div class="flex items-center bg-surface-container-low rounded h-10 px-space-sm">
+<span class="material-symbols-outlined text-[18px] text-secondary mr-2">desktop_windows</span>
+<select class="bg-transparent w-full font-body-md text-body-md text-on-surface focus:outline-none cursor-pointer">
+<option value="all">Todas las terminales (01, 02 y Móvil)</option>
+<option value="caja1">Caja Principal 01</option>
+<option value="caja2">Terminal TPV 2</option>
+<option value="caja3">Terminal Móvil Reparto</option>
+</select>
+</div>
+</div>
+<!-- Medio de Pago -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant">Medio de Pago / Pasarela</label>
+<div class="flex items-center bg-surface-container-low rounded h-10 px-space-sm">
+<span class="material-symbols-outlined text-[18px] text-secondary mr-2">payments</span>
+<select class="bg-transparent w-full font-body-md text-body-md text-on-surface focus:outline-none cursor-pointer">
+<option value="all">Todos los métodos (CUP / Pasarelas)</option>
+<option value="efectivo">Solo Efectivo CUP</option>
+<option value="transfermovil">Transfermóvil (Código QR / En línea)</option>
+<option value="enzona">EnZona (Bulevar QR)</option>
+<option value="mixto">Pagos Mixtos</option>
+</select>
+</div>
+</div>
+<!-- Categoría de Producto -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-label-sm text-label-sm text-on-surface-variant">Categoría / Proveedor</label>
+<div class="flex items-center bg-surface-container-low rounded h-10 px-space-sm">
+<span class="material-symbols-outlined text-[18px] text-secondary mr-2">category</span>
+<select class="bg-transparent w-full font-body-md text-body-md text-on-surface focus:outline-none cursor-pointer">
+<option value="all">Todas las categorías</option>
+<option value="alimentos">Alimentos y Bebidas</option>
+<option value="aseo">Aseo y Hogar</option>
+<option value="ferreteria">Ferretería y Herramientas</option>
+<option value="electronica">Electrónica / Baterías</option>
+</select>
+</div>
+</div>
+</div>
+<!-- Barra de botones de acción del filtro -->
+<div class="flex items-center justify-between pt-space-xs">
+<div class="flex items-center gap-space-sm text-on-surface-variant font-label-sm text-label-sm">
+<span class="inline-block w-2 h-2 rounded-full bg-primary"></span>
+<span>182 comprobantes coinciden con los criterios de auditoría</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<button class="h-9 px-3 rounded bg-surface-container text-on-surface-variant hover:text-on-surface font-body-bold text-body-bold flex items-center gap-1 transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">restart_alt</span>
+<span>Limpiar</span>
+</button>
+<button class="h-9 px-4 rounded bg-primary text-on-primary hover:bg-tertiary font-body-bold text-body-bold flex items-center gap-1 transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">filter_alt</span>
+<span>Aplicar Filtros</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- 3. Formatos de Exportación y Opciones de Salida Inmediata -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md">
+<!-- Opción 1: PDF Fiscal -->
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between group hover:shadow-md transition-all">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-lg bg-error-container text-on-error-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">picture_as_pdf</span>
+</div>
+<span class="font-code-mono text-label-sm text-secondary bg-surface-container-low px-2 py-0.5 rounded">A4 / Ticket 80mm</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Exportar PDF Fiscal</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Con membrete oficial, RUP de MIPYME, firma electrónica y hash SHA-256 local.</p>
+</div>
+</div>
+<button class="mt-space-md h-9 w-full rounded bg-surface-container-high hover:bg-primary hover:text-on-primary text-on-surface font-body-bold text-body-bold flex items-center justify-center gap-2 transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>Generar Documento</span>
+</button>
+</div>
+<!-- Opción 2: Excel XLSX -->
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between group hover:shadow-md transition-all">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">table_view</span>
+</div>
+<span class="font-code-mono text-label-sm text-primary font-bold bg-surface-container px-2 py-0.5 rounded">.XLSX Nativo</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Descargar Excel (.xlsx)</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Hojas desglosadas con fórmulas de margen, resumen por turno y tablas dinámicas.</p>
+</div>
+</div>
+<button class="mt-space-md h-9 w-full rounded bg-surface-container-high hover:bg-primary hover:text-on-primary text-on-surface font-body-bold text-body-bold flex items-center justify-center gap-2 transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>Descargar Libro</span>
+</button>
+</div>
+<!-- Opción 3: CSV Estructurado -->
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between group hover:shadow-md transition-all">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-lg bg-secondary-container text-on-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">csv</span>
+</div>
+<span class="font-code-mono text-label-sm text-secondary bg-surface-container-low px-2 py-0.5 rounded">UTF-8 / RFC 4180</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Exportar CSV Plano</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Compatible para importación directa en sistemas contables cubanos (Versat, etc.).</p>
+</div>
+</div>
+<button class="mt-space-md h-9 w-full rounded bg-surface-container-high hover:bg-primary hover:text-on-primary text-on-surface font-body-bold text-body-bold flex items-center justify-center gap-2 transition-colors" id="btn-report-export-csv" onclick="downloadInventoryCsvReport()" type="button">
+<span class="material-symbols-outlined text-[18px]">file_download</span>
+<span>Exportar CSV</span>
+</button>
+</div>
+<!-- Opción 4: Reporte Imprimible Stock Bajo -->
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between group hover:shadow-md transition-all">
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-lg bg-primary-fixed text-on-primary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">print</span>
+</div>
+<span class="font-code-mono text-label-sm text-primary font-bold bg-primary-fixed-dim/20 px-2 py-0.5 rounded">A4 / Carta</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Stock Bajo Umbral</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Vista imprimible con los artículos por debajo de su stock mínimo, faltantes y costos.</p>
+</div>
+</div>
+<a class="mt-space-md h-9 w-full rounded bg-surface-container-high hover:bg-primary hover:text-on-primary text-on-surface font-body-bold text-body-bold flex items-center justify-center gap-2 transition-colors" href="/reporte-stock-bajo" id="btn-report-low-stock-print">
+<span class="material-symbols-outlined text-[18px]">print</span>
+<span>Abrir Vista Imprimible</span>
+</a>
+</div>
+</div>
+<!-- 4. Resumen Ejecutivo del Filtro Actual (4 Métricas Clave) -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md">
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col gap-space-xs relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Total Facturado en Período</span>
+<span class="material-symbols-outlined text-primary text-[20px]">monetization_on</span>
+</div>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-display-lg text-display-lg text-on-surface font-code-mono font-bold">$418,920.00</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">CUP</span>
+</div>
+<div class="flex items-center gap-1.5 mt-2 font-body-md text-body-md text-on-surface-variant">
+<span class="font-bold text-primary">182</span>
+<span>transacciones auditadas en SQLite</span>
+</div>
+</div>
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Costo Mercancía Vendida (CMV)</span>
+<span class="material-symbols-outlined text-secondary text-[20px]">inventory</span>
+</div>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-display-lg text-display-lg text-on-surface font-code-mono font-bold">$290,470.00</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">CUP</span>
+</div>
+<div class="flex items-center gap-1.5 mt-2 font-body-md text-body-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-secondary">update</span>
+<span>Base de reposición promedio ponderado</span>
+</div>
+</div>
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Margen de Ganancia Neta</span>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-surface-container-high text-primary font-code-mono text-label-sm font-bold">30.66%</span>
+</div>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-display-lg text-display-lg text-primary font-code-mono font-bold">+$128,450.00</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">CUP</span>
+</div>
+<div class="flex items-center gap-1.5 mt-2 font-body-md text-body-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-primary">verified</span>
+<span>Rentabilidad neta sobre ventas</span>
+</div>
+</div>
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Canal Digital vs Efectivo</span>
+<span class="material-symbols-outlined text-primary text-[20px]">qr_code_scanner</span>
+</div>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="font-headline-lg text-headline-lg text-on-surface font-code-mono font-bold">47.8% / 52.2%</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2 mt-2 overflow-hidden flex">
+<div class="bg-primary h-full" style="width: 47.8%" title="Digital: 47.8%"></div>
+<div class="bg-secondary h-full" style="width: 52.2%" title="Efectivo: 52.2%"></div>
+</div>
+<div class="flex items-center justify-between mt-1 text-label-sm font-label-sm text-on-surface-variant">
+<span>$200,420 (Digital)</span>
+<span>$218,500 (CUP Gaveta)</span>
+</div>
+</div>
+</div>
+<!-- 5. Tabla de Previsualización de Datos del Reporte (Auditoría previa a exportar) -->
+<div class="bg-white rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] overflow-hidden flex flex-col">
+<!-- Encabezado de la tabla -->
+<div class="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm bg-surface-container-low">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[22px]">find_in_page</span>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Previsualización de Datos para Exportación</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">182 registros encontrados • Mostrando las operaciones representativas del período auditado</span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm">
+<span class="font-code-mono text-label-sm bg-surface-container px-2 py-1 rounded text-on-surface">Hash: e8a9...f312</span>
+<button class="h-8 px-3 rounded bg-surface-container-high hover:bg-surface-container text-on-surface font-label-md text-label-md flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[16px]">tune</span>
+<span>Columnas</span>
+</button>
+</div>
+</div>
+<!-- Contenedor scroll horizontal de la tabla -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse min-w-[1080px]">
+<thead>
+<tr class="bg-surface-container font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+<th class="py-3 px-space-md">Fecha / Hora</th>
+<th class="py-3 px-space-md">Nº Comprobante</th>
+<th class="py-3 px-space-md">Terminal &amp; Operador</th>
+<th class="py-3 px-space-md">Tipo / Categoría</th>
+<th class="py-3 px-space-md text-right">Subtotal</th>
+<th class="py-3 px-space-md text-right">Descto</th>
+<th class="py-3 px-space-md text-right">Total (CUP)</th>
+<th class="py-3 px-space-md text-right">Costo Hist.</th>
+<th class="py-3 px-space-md text-right">Ganancia Neta</th>
+<th class="py-3 px-space-md">Método Pago</th>
+<th class="py-3 px-space-md text-center">Estado</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md text-on-surface divide-y divide-surface-container-low">
+<!-- Fila 1 -->
+<tr class="hover:bg-surface-container-low/70 transition-colors">
+<td class="py-3 px-space-md font-code-mono text-code-mono text-on-surface-variant">25/05/2025 10:42</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-primary">FAC-2025-00142</td>
+<td class="py-3 px-space-md">
+<div class="flex flex-col">
+<span class="font-body-bold text-body-bold">Caja 01</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Terminal Principal</span>
+</div>
+</td>
+<td class="py-3 px-space-md">
+<span class="px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface">Venta Mostrador</span>
+</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right">$2,895.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">$0.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-right text-on-surface">$2,895.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">$1,840.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right font-bold text-primary">+$1,055.00 (36.4%)</td>
+<td class="py-3 px-space-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">payments</span>
+<span>Efectivo CUP</span>
+</div>
+</td>
+<td class="py-3 px-space-md text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm font-semibold">Completado</span>
+</td>
+</tr>
+<!-- Fila 2 -->
+<tr class="hover:bg-surface-container-low/70 transition-colors">
+<td class="py-3 px-space-md font-code-mono text-code-mono text-on-surface-variant">25/05/2025 10:15</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-primary">FAC-2025-00141</td>
+<td class="py-3 px-space-md">
+<div class="flex flex-col">
+<span class="font-body-bold text-body-bold">Caja 02</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Terminal TPV 02</span>
+</div>
+</td>
+<td class="py-3 px-space-md">
+<span class="px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface">Venta Mostrador</span>
+</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right">$4,520.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">$0.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-right text-on-surface">$4,520.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">$3,100.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right font-bold text-primary">+$1,420.00 (31.4%)</td>
+<td class="py-3 px-space-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">qr_code_scanner</span>
+<span>Transfermóvil (QR)</span>
+</div>
+</td>
+<td class="py-3 px-space-md text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm font-semibold">Completado</span>
+</td>
+</tr>
+<!-- Fila 3 -->
+<tr class="hover:bg-surface-container-low/70 transition-colors">
+<td class="py-3 px-space-md font-code-mono text-code-mono text-on-surface-variant">25/05/2025 09:50</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-primary">FAC-2025-00140</td>
+<td class="py-3 px-space-md">
+<div class="flex flex-col">
+<span class="font-body-bold text-body-bold">Caja 01</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Terminal Principal</span>
+</div>
+</td>
+<td class="py-3 px-space-md">
+<span class="px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface">Venta Mostrador</span>
+</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right">$1,200.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">$0.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-right text-on-surface">$1,200.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">$780.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right font-bold text-primary">+$420.00 (35.0%)</td>
+<td class="py-3 px-space-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">smartphone</span>
+<span>EnZona</span>
+</div>
+</td>
+<td class="py-3 px-space-md text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm font-semibold">Completado</span>
+</td>
+</tr>
+<!-- Fila 4 -->
+<tr class="hover:bg-surface-container-low/70 transition-colors">
+<td class="py-3 px-space-md font-code-mono text-code-mono text-on-surface-variant">25/05/2025 09:20</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-primary">FAC-2025-00139</td>
+<td class="py-3 px-space-md">
+<div class="flex flex-col">
+<span class="font-body-bold text-body-bold">Caja 01</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Terminal Principal</span>
+</div>
+</td>
+<td class="py-3 px-space-md">
+<span class="px-2 py-0.5 rounded bg-surface-container font-label-sm text-label-sm text-on-surface">Venta Mostrador</span>
+</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right">$6,400.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-error">-$100.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-right text-on-surface">$6,300.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">$4,200.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right font-bold text-primary">+$2,100.00 (33.3%)</td>
+<td class="py-3 px-space-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">payments</span>
+<span>Efectivo CUP</span>
+</div>
+</td>
+<td class="py-3 px-space-md text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm font-semibold">Completado</span>
+</td>
+</tr>
+<!-- Fila 5: Arqueo Z -->
+<tr class="hover:bg-surface-container-low/70 bg-surface-container-low/30 transition-colors">
+<td class="py-3 px-space-md font-code-mono text-code-mono text-on-surface-variant">24/05/2025 19:30</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-secondary">ARQ-2025-00058</td>
+<td class="py-3 px-space-md">
+<div class="flex flex-col">
+<span class="font-body-bold text-body-bold">Caja 02</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Terminal TPV 02</span>
+</div>
+</td>
+<td class="py-3 px-space-md">
+<span class="px-2 py-0.5 rounded bg-primary-fixed-dim/30 font-label-sm text-label-sm text-primary font-bold">Cierre Caja Z</span>
+</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right font-bold text-on-surface">$78,400.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">—</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono font-bold text-right text-on-surface">$78,400.00</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">—</td>
+<td class="py-3 px-space-md font-code-mono text-code-mono text-right text-on-surface-variant">Balance Cuadrado ($0 dif)</td>
+<td class="py-3 px-space-md">
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">call_split</span>
+<span>Mixto (Efectivo/Transf)</span>
+</div>
+</td>
+<td class="py-3 px-space-md text-center">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-container-highest text-on-surface font-label-sm text-label-sm font-semibold">Auditado</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Paginación de la tabla -->
+<div class="p-space-md flex flex-col sm:flex-row items-center justify-between gap-space-sm bg-surface-container-lowest">
+<div class="font-label-sm text-label-sm text-on-surface-variant">
+        Mostrando <span class="font-bold text-on-surface">5</span> de <span class="font-bold text-on-surface">182</span> registros • Página <span class="font-bold text-on-surface">1</span> de <span class="font-bold text-on-surface">37</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="h-8 px-3 rounded bg-surface-container-low text-on-surface-variant/50 font-label-md text-label-md flex items-center gap-1 cursor-not-allowed" disabled="" type="button">
+<span class="material-symbols-outlined text-[16px]">chevron_left</span>
+<span>Anterior</span>
+</button>
+<button class="h-8 w-8 rounded bg-primary-container text-on-primary font-bold text-label-sm" type="button">1</button>
+<button class="h-8 w-8 rounded hover:bg-surface-container font-label-sm text-label-sm text-on-surface" type="button">2</button>
+<button class="h-8 w-8 rounded hover:bg-surface-container font-label-sm text-label-sm text-on-surface" type="button">3</button>
+<span class="px-1 text-on-surface-variant">...</span>
+<button class="h-8 w-8 rounded hover:bg-surface-container font-label-sm text-label-sm text-on-surface" type="button">37</button>
+<button class="h-8 px-3 rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md flex items-center gap-1 transition-colors" type="button">
+<span>Siguiente</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- 6. Panel Inferior: Módulos de Reportes Predefinidos Listos para Generar -->
+<div class="flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<h2 class="font-display-md text-display-md text-on-surface">Plantillas Contables Oficiales de MIPYME</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Formatos estandarizados y parametrizados para cumplimiento tributario y arqueo periódico en Cuba.</p>
+</div>
+<span class="font-label-sm text-label-sm text-primary font-bold px-3 py-1 rounded bg-surface-container">4 Plantillas Activas</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md">
+<!-- Reporte 1 -->
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between hover:shadow-md transition-all">
+<div class="flex flex-col gap-space-sm">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">menu_book</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline-sm text-headline-sm text-on-surface">Libro Diario de Ventas e Ingresos</span>
+<span class="font-label-sm text-label-sm text-secondary">Obligatorio Fiscal</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Registro cronológico continuo con foliado oficial, desglose de IVA/impuestos y pasarelas de pago auditadas.</p>
+</div>
+</div>
+<div class="mt-space-lg flex items-center justify-between pt-space-md border-t border-surface-container-low">
+<span class="font-code-mono text-label-sm text-on-surface-variant">PDF + Resumen .xlsx</span>
+<button class="h-8 px-3 rounded bg-primary text-on-primary font-label-md text-label-md flex items-center gap-1 hover:bg-tertiary transition-colors" onclick="alert('Generando Libro Diario de Ventas en formato oficial...')" type="button">
+<span class="material-symbols-outlined text-[16px]">file_open</span>
+<span>Generar</span>
+</button>
+</div>
+</div>
+<!-- Reporte 2 -->
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between hover:shadow-md transition-all">
+<div class="flex flex-col gap-space-sm">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">calculate</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline-sm text-headline-sm text-on-surface">Cierre Diario (Arqueo Z)</span>
+<span class="font-label-sm text-label-sm text-secondary">Control Operativo</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Cuadre de gaveta en efectivo CUP, comprobantes QR Transfermóvil y conciliación de diferencias por cajero.</p>
+</div>
+</div>
+<div class="mt-space-lg flex items-center justify-between pt-space-md border-t border-surface-container-low">
+<span class="font-code-mono text-label-sm text-on-surface-variant">Ticket 80mm / A4</span>
+<button class="h-8 px-3 rounded bg-primary text-on-primary font-label-md text-label-md flex items-center gap-1 hover:bg-tertiary transition-colors" onclick="alert('Generando Arqueo Z consolidado...')" type="button">
+<span class="material-symbols-outlined text-[16px]">file_open</span>
+<span>Generar</span>
+</button>
+</div>
+</div>
+<!-- Reporte 3 -->
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between hover:shadow-md transition-all">
+<div class="flex flex-col gap-space-sm">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">query_stats</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline-sm text-headline-sm text-on-surface">Rentabilidad por Producto</span>
+<span class="font-label-sm text-label-sm text-secondary">Estratégico</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Clasificación ABC: productos de mayor margen vs sin rotación o con merma por vencimiento cercano.</p>
+</div>
+</div>
+<div class="mt-space-lg flex items-center justify-between pt-space-md border-t border-surface-container-low">
+<span class="font-code-mono text-label-sm text-on-surface-variant">Matriz Excel Dinámica</span>
+<button class="h-8 px-3 rounded bg-primary text-on-primary font-label-md text-label-md flex items-center gap-1 hover:bg-tertiary transition-colors" onclick="alert('Generando Análisis de Rentabilidad...')" type="button">
+<span class="material-symbols-outlined text-[16px]">file_open</span>
+<span>Generar</span>
+</button>
+</div>
+</div>
+<!-- Reporte 4 -->
+<div class="bg-white rounded-2xl p-space-lg border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between hover:shadow-md transition-all">
+<div class="flex flex-col gap-space-sm">
+<div class="w-10 h-10 rounded-lg bg-surface-container-high text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">warehouse</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline-sm text-headline-sm text-on-surface">Kardex y Mermas</span>
+<span class="font-label-sm text-label-sm text-secondary">Inventario Físico</span>
+<p class="font-body-md text-body-md text-on-surface-variant">Historial exhaustivo de recepciones de compra, salidas por ventas en TPV y actas de baja por rotura.</p>
+</div>
+</div>
+<div class="mt-space-lg flex items-center justify-between pt-space-md border-t border-surface-container-low">
+<span class="font-code-mono text-label-sm text-on-surface-variant">Auditoría CSV / PDF</span>
+<button class="h-8 px-3 rounded bg-primary text-on-primary font-label-md text-label-md flex items-center gap-1 hover:bg-tertiary transition-colors" onclick="alert('Generando Kardex de Inventario...')" type="button">
+<span class="material-symbols-outlined text-[16px]">file_open</span>
+<span>Generar</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+  // Micro-interacción ligera para pestañas
+  document.querySelectorAll('[data-tab]').forEach(tab => {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('[data-tab]').forEach(t => {
+        t.className = "px-space-md py-space-sm rounded-t-lg font-body-bold text-body-bold flex items-center gap-space-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors";
+        const dot = t.querySelector('span.bg-primary');
+        if (dot) dot.remove();
+      });
+      this.className = "px-space-md py-space-sm rounded-t-lg font-body-bold text-body-bold flex items-center gap-space-xs bg-surface-container-lowest text-primary shadow-sm";
+      const newDot = document.createElement('span');
+      newDot.className = "ml-1 w-2 h-2 rounded-full bg-primary";
+      this.appendChild(newDot);
+    });
+  });
+
+  function downloadInventoryCsvReport() {
+    const link = document.createElement('a');
+    link.href = '/api/productos/export/csv';
+    link.download = '';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+</script></main></div></body></html>

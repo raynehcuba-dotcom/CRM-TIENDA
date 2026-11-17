@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Dashboard — Gestor Tienda</title>
+  <meta name="description" content="Sistema local de gestión de ventas (TPV), inventario, proveedores, caja chica y cuadre semanal para tienda."/>
+  <meta property="og:title" content="Dashboard — Gestor Tienda"/>
+  <meta property="og:description" content="Sistema local de gestión de ventas (TPV), inventario, proveedores, caja chica y cuadre semanal para tienda."/>
+  <meta content="web_dashboard" name="shell-type"/>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;600;700&amp;family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+  <style>
+    @layer base {
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        background-color: #FFFFFF;
+        color: #182034;
+        overscroll-behavior: none;
+      }
+      h1, h2, h3, h4, .font-headline, .gt-brand-title {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+      }
+      main > :first-child { margin-top: 0 !important; }
+      main > :last-child { margin-bottom: 0 !important; }
+    }
+    ::-webkit-scrollbar { display: none; }
+    aside.gt-sidebar {
+      background: linear-gradient(180deg, #1350FF 0%, #0E4BFF 58%, #0A40EB 100%);
+    }
+    .gt-nav-active {
+      background: #FFFFFF !important;
+      color: #0E4BFF !important;
+      font-weight: 700 !important;
+      border-radius: 9999px 0 0 9999px !important;
+      position: relative;
+      box-shadow: -4px 6px 18px rgba(0, 0, 0, 0.08);
+    }
+    .gt-nav-active::before,
+    .gt-nav-active::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+    }
+    .gt-nav-active::before {
+      top: -18px;
+      background: radial-gradient(circle at 0 0, transparent 18px, #FFFFFF 18.5px);
+    }
+    .gt-nav-active::after {
+      bottom: -18px;
+      background: radial-gradient(circle at 0 100%, transparent 18px, #FFFFFF 18.5px);
+    }
+    
+  </style>
+  <script src="/assets/tailwind-cdn.js"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary-container": "#0E4BFF",
+            "surface-dim": "#DCE6FF",
+            "background": "#FFFFFF",
+            "primary": "#0E4BFF",
+            "surface": "#FFFFFF",
+            "on-tertiary-container": "#FFFFFF",
+            "on-secondary-container": "#475569",
+            "on-primary-container": "#FFFFFF",
+            "outline-variant": "#E8EEF7",
+            "surface-container-highest": "#DCE6FF",
+            "on-error-container": "#991B1B",
+            "on-tertiary-fixed": "#0A40EB",
+            "on-tertiary": "#FFFFFF",
+            "surface-bright": "#FFFFFF",
+            "surface-container-low": "#F8FAFF",
+            "on-secondary-fixed": "#182034",
+            "primary-fixed": "#DCE6FF",
+            "inverse-surface": "#182034",
+            "on-surface-variant": "#64748B",
+            "error-container": "#FEE2E2",
+            "surface-container": "#F1F5FD",
+            "surface-variant": "#E5ECFF",
+            "on-primary-fixed-variant": "#0A40EB",
+            "inverse-on-surface": "#FFFFFF",
+            "on-primary-fixed": "#0E4BFF",
+            "surface-container-lowest": "#FFFFFF",
+            "secondary-fixed": "#E5ECFF",
+            "surface-tint": "#0E4BFF",
+            "tertiary-container": "#1350FF",
+            "on-surface": "#182034",
+            "surface-container-high": "#E5ECFF",
+            "tertiary-fixed": "#DCE6FF",
+            "secondary-container": "#F1F5FD",
+            "on-background": "#182034",
+            "primary-fixed-dim": "#B7C9FF",
+            "secondary": "#64748B",
+            "on-secondary": "#FFFFFF",
+            "on-primary": "#FFFFFF",
+            "on-tertiary-fixed-variant": "#0A40EB",
+            "secondary-fixed-dim": "#CBD5E1",
+            "tertiary": "#0A40EB",
+            "outline": "#94A3B8",
+            "tertiary-fixed-dim": "#B7C9FF",
+            "on-error": "#FFFFFF",
+            "on-secondary-fixed-variant": "#475569",
+            "error": "#DC2626",
+            "inverse-primary": "#7DA4FF"
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "0.75rem",
+            "xl": "1rem",
+            "2xl": "1.25rem",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-md": "0.75rem",
+            "gutter-dense": "0.5rem",
+            "space-lg": "1rem",
+            "space-sm": "0.5rem",
+            "space-2xl": "2rem",
+            "space-xs": "0.25rem",
+            "space-xl": "1.5rem",
+            "margin": "1.5rem",
+            "gutter": "1rem",
+            "margin-compact": "1rem"
+          },
+          fontFamily: {
+            "headline-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "display-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-sm": ["Plus Jakarta Sans", "sans-serif"],
+            "display-md": ["Plus Jakarta Sans", "sans-serif"],
+            "headline": ["Plus Jakarta Sans", "sans-serif"],
+            "display": ["Plus Jakarta Sans", "sans-serif"],
+            "code-mono": ["JetBrains Mono", "monospace"],
+            "label-md": ["DM Sans", "sans-serif"],
+            "body-md": ["DM Sans", "sans-serif"],
+            "label-sm": ["DM Sans", "sans-serif"],
+            "body-bold": ["DM Sans", "sans-serif"],
+            "body-lg": ["DM Sans", "sans-serif"],
+            "sans": ["DM Sans", "sans-serif"]
+          },
+          fontSize: {
+            "headline-lg": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+            "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+            "code-mono": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "label-md": ["13px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "label-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "headline-sm": ["16px", { "lineHeight": "24px", "letterSpacing": "-0.005em", "fontWeight": "700" }],
+            "display-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "700" }],
+            "body-bold": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+          }
+        }
+      }
+    };
+  </script>
+</head><body class="bg-white font-body-md text-body-md text-[#182034] antialiased"><aside class="gt-sidebar fixed left-0 top-0 h-screen w-64 flex flex-col z-50 text-white">
+    <div class="px-6 pt-7 pb-5 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-[20px] text-white">storefront</span>
+      </div>
+      <div class="flex flex-col min-w-0">
+        <span class="gt-brand-title text-[20px] font-extrabold tracking-tight text-white leading-tight truncate">Gestor Tienda</span>
+        <span class="text-[11px] font-medium text-white/70 truncate">Tienda Central · Local</span>
+      </div>
+    </div>
+    <nav class="flex-1 pl-4 pr-0 py-2 flex flex-col gap-1 overflow-y-auto overflow-x-hidden">
+      <a class="gt-nav-active flex items-center gap-3.5 pl-4 pr-5 py-2.5 text-[14px] transition-all" data-path="dashboard" href="/dashboard">
+        <span class="material-symbols-outlined text-[20px] text-[#0E4BFF]">grid_view</span>
+        <span class="flex-1 truncate font-headline">Dashboard</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="ventas-tpv" href="/pos">
+        <span class="material-symbols-outlined text-[20px] text-white/85">shopping_cart</span>
+        <span class="flex-1 truncate font-headline">Ventas (TPV)</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="inventario" href="/inventario">
+        <span class="material-symbols-outlined text-[20px] text-white/85">inventory_2</span>
+        <span class="flex-1 truncate font-headline">Inventario</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="proveedores" href="/proveedores">
+        <span class="material-symbols-outlined text-[20px] text-white/85">local_shipping</span>
+        <span class="flex-1 truncate font-headline">Proveedores</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="caja-chica" href="/caja-chica">
+        <span class="material-symbols-outlined text-[20px] text-white/85">account_balance_wallet</span>
+        <span class="flex-1 truncate font-headline">Caja Chica</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="cierre-caja" href="/cierre-caja">
+        <span class="material-symbols-outlined text-[20px] text-white/85">point_of_sale</span>
+        <span class="flex-1 truncate font-headline">Cierre de Caja</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="cuadre" href="/cuadre">
+        <span class="material-symbols-outlined text-[20px] text-white/85">insights</span>
+        <span class="flex-1 truncate font-headline">Cuadre Semanal</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="clientes" href="/clientes">
+        <span class="material-symbols-outlined text-[20px] text-white/85">groups</span>
+        <span class="flex-1 truncate font-headline">Clientes</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="reportes" href="/reportes">
+        <span class="material-symbols-outlined text-[20px] text-white/85">bar_chart</span>
+        <span class="flex-1 truncate font-headline">Reportes</span>
+      </a>
+      <a class="flex items-center gap-3.5 pl-4 pr-5 py-2.5 rounded-l-full text-white/80 hover:text-white hover:bg-white/10 text-[14px] font-medium transition-all" data-path="mantenimiento" href="/mantenimiento">
+        <span class="material-symbols-outlined text-[20px] text-white/85">settings</span>
+        <span class="flex-1 truncate font-headline">Mantenimiento</span>
+      </a>
+    </nav>
+    <div class="px-6 py-4 border-t border-white/15 flex items-center justify-between text-[11px] text-white/70">
+      <span class="inline-flex items-center gap-1.5 truncate">
+        <span class="w-2 h-2 rounded-full bg-emerald-300 shrink-0"></span>
+        <span>SQLite Local</span>
+      </span>
+      <span class="font-code-mono">v1.0</span>
+    </div>
+  </aside>
+  <div class="pl-64 flex flex-col min-h-screen bg-white"><header class="fixed top-0 left-64 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-[#E8EEF7] z-40 px-8 flex items-center justify-between">
+      <div class="flex flex-col min-w-0">
+        <h1 class="font-headline text-[20px] font-bold tracking-tight text-[#182034] leading-tight truncate">Dashboard</h1>
+        <p class="text-[12px] text-[#64748B] truncate">Resumen operativo y rendimiento en tiempo real</p>
+      </div>
+      <div class="flex items-center gap-2.5 shrink-0">
+        <button aria-label="Alertas de stock bajo" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" id="gt-header-alerts-btn" onclick="window.dispatchEvent(new CustomEvent('stock-alert-monitor:toggle'))" title="Alertas de Stock" type="button">
+          <span class="material-symbols-outlined text-[19px]">notifications</span>
+        </button>
+        <button aria-label="Resumen Operativo del Día" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" id="gt-header-daily-summary-btn" onclick="window.dispatchEvent(new CustomEvent('daily-summary:open'))" title="Resumen del Día" type="button">
+          <span class="material-symbols-outlined text-[19px]">summarize</span>
+        </button>
+        <a aria-label="Reporte imprimible de stock bajo" class="w-9 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] hover:bg-[#EEF3FF] text-[#475569] hover:text-[#0E4BFF] inline-flex items-center justify-center transition-colors" href="/reporte-stock-bajo" title="Reporte Imprimible de Stock Bajo">
+          <span class="material-symbols-outlined text-[19px]">print</span>
+        </a>
+        <span class="hidden sm:inline-flex items-center px-3 h-9 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] font-code-mono text-[12px] font-bold text-[#182034]">CUP</span>
+      </div>
+    </header><main class="w-full pt-20 bg-white min-h-screen px-8 pb-12"><div class="flex flex-col w-full">
+<div class="flex flex-col gap-space-xl pt-space-md">
+<!-- Action Bar & Operational Context Header -->
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)]">
+<div class="flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center p-space-xs shrink-0">
+<img alt="Logo Gestor Tienda" class="w-full h-full object-contain" src="/assets/logo-placeholder.svg"/>
+</div>
+<div>
+<div class="flex items-center gap-space-xs">
+<h1 class="font-headline-lg text-headline-lg text-on-surface">Rendimiento Operativo y Financiero</h1>
+<span class="inline-flex items-center gap-1 px-space-xs py-[2px] bg-surface-container-high text-on-surface text-label-sm font-label-sm rounded">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+              SQLite Activa
+            </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">
+            Módulo 04 • Análisis de ventas en CUP, márgenes comerciales y recaudación local en La Habana
+          </p>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-space-sm">
+<!-- Time Filter Segmented -->
+<div class="inline-flex p-1 bg-surface-container rounded-lg">
+<button class="px-space-md py-1.5 rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm font-semibold transition-all" type="button">Esta Semana</button>
+<button class="px-space-md py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-all" type="button">Este Mes</button>
+<button class="px-space-md py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-all" type="button">Mes Anterior</button>
+<button class="px-space-md py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-all flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[16px]">calendar_month</span>
+<span>Personalizado</span>
+</button>
+</div>
+<!-- Secondary and Primary Action Buttons -->
+<button class="h-10 px-space-md rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md font-semibold inline-flex items-center gap-space-xs transition-colors" id="btn-open-daily-summary" onclick="window.dispatchEvent(new CustomEvent('daily-summary:open'))" type="button">
+<span class="material-symbols-outlined text-[18px]">summarize</span>
+<span>Resumen del Día</span>
+</button>
+<button class="h-10 px-space-md rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md font-semibold inline-flex items-center gap-space-xs transition-colors" id="btn-refresh-dashboard" onclick="loadDashboardData()" type="button">
+<span class="material-symbols-outlined text-[18px]">sync</span>
+<span>Actualizar</span>
+</button>
+<button class="h-10 px-space-md rounded-lg bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md font-semibold inline-flex items-center gap-space-xs shadow-sm transition-colors" onclick="exportDashboardSummary()" type="button">
+<span class="material-symbols-outlined text-[18px]">file_download</span>
+<span>Exportar Resumen</span>
+</button>
+</div>
+</div>
+<!-- Top Key Metrics Cards (KPIs) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
+<!-- KPI 1: Ventas / Ingresos Totales -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Ventas / Ingresos Totales</span>
+<div class="w-9 h-9 rounded-lg bg-surface-container-high text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">payments</span>
+</div>
+</div>
+<div class="mt-space-md">
+<div class="font-display-lg text-display-lg text-on-surface font-bold tracking-tight" id="kpi-ventas-monto">
+            $0<span class="text-headline-sm font-headline-sm font-normal text-on-surface-variant">.00 CUP</span>
+</div>
+<div class="flex items-center gap-space-xs mt-space-xs">
+<span class="inline-flex items-center gap-0.5 px-space-xs py-[2px] rounded bg-[#ecfdf5] text-[#065f46] font-label-sm text-label-sm font-bold" id="kpi-ventas-badge">
+<span class="material-symbols-outlined text-[14px]">database</span>
+              SQLite
+            </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant" id="kpi-ventas-sub">total acumulado</span>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs text-label-sm font-label-sm text-on-surface-variant flex items-center justify-between">
+<span>Fondo gaveta:</span>
+<span class="text-[#065f46] font-semibold" id="kpi-gaveta-estado">Abierta</span>
+</div>
+</div>
+<!-- KPI 2: Ganancia Neta -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Ganancia Neta Calculada</span>
+<div class="w-9 h-9 rounded-lg bg-[#ecfdf5] text-[#065f46] flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">trending_up</span>
+</div>
+</div>
+<div class="mt-space-md">
+<div class="font-display-lg text-display-lg text-[#065f46] font-bold tracking-tight" id="kpi-ganancia-monto">
+            $0<span class="text-headline-sm font-headline-sm font-normal text-on-surface-variant">.00 CUP</span>
+</div>
+<div class="flex items-center gap-space-xs mt-space-xs">
+<span class="inline-flex items-center gap-0.5 px-space-xs py-[2px] rounded bg-[#ecfdf5] text-[#065f46] font-label-sm text-label-sm font-bold" id="kpi-margen-badge">
+<span class="material-symbols-outlined text-[14px]">percent</span>
+              0.0%
+            </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">margen neto real</span>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs text-label-sm font-label-sm text-on-surface-variant flex items-center justify-between">
+<span id="kpi-costo-deducido">Costo deducido: $0.00</span>
+<span class="font-code-mono font-bold text-on-surface">Neto</span>
+</div>
+</div>
+<!-- KPI 3: Tickets / Operaciones -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Operaciones TPV / Tickets</span>
+<div class="w-9 h-9 rounded-lg bg-surface-container-high text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+</div>
+</div>
+<div class="mt-space-md">
+<div class="font-display-lg text-display-lg text-on-surface font-bold tracking-tight" id="kpi-tickets-count">
+            0 <span class="text-headline-sm font-headline-sm font-normal text-on-surface-variant">tickets</span>
+</div>
+<div class="flex items-center gap-space-xs mt-space-xs">
+<span class="inline-flex items-center gap-0.5 px-space-xs py-[2px] rounded bg-[#ecfdf5] text-[#065f46] font-label-sm text-label-sm font-bold">
+<span class="material-symbols-outlined text-[14px]">point_of_sale</span>
+              TPV Local
+            </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">ventas completadas</span>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs text-label-sm font-label-sm text-on-surface-variant flex items-center justify-between">
+<span>Ticket promedio:</span>
+<span class="font-code-mono font-bold text-on-surface" id="kpi-ticket-promedio">$0.00 CUP</span>
+</div>
+</div>
+<!-- KPI 4: Deuda a Proveedores y Alertas -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Por Pagar Proveedores</span>
+<div class="w-9 h-9 rounded-lg bg-surface-container text-tertiary flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">local_shipping</span>
+</div>
+</div>
+<div class="mt-space-md">
+<div class="font-display-lg text-display-lg text-on-surface font-bold tracking-tight" id="kpi-deuda-prov">
+            $0<span class="text-headline-sm font-headline-sm font-normal text-on-surface-variant">.00 CUP</span>
+</div>
+<div class="flex items-center gap-space-xs mt-space-xs">
+<span class="inline-flex items-center gap-0.5 px-space-xs py-[2px] rounded bg-[#fffbeb] text-[#92400e] font-label-sm text-label-sm font-bold" id="kpi-stock-alerta-badge">
+<span class="material-symbols-outlined text-[14px]">warning</span>
+              0 alertas stock
+            </span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">en catálogo</span>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs text-label-sm font-label-sm text-on-surface-variant flex items-center justify-between">
+<span>Valor inventario:</span>
+<span class="text-primary font-semibold" id="kpi-valor-inventario">$0.00 CUP</span>
+</div>
+</div>
+</div>
+<!-- React Restock Priority Summary & Notification Box (SQLite Live) -->
+<div id="dashboard-restock-root"></div>
+<script type="module" src="/assets/dashboard-app.js"></script>
+<!-- Period Breakdown Cards: Structured Comparative -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-space-md">
+<!-- Comparative: Semanal -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[20px]">date_range</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Resumen de Ventas en SQLite</h2>
+</div>
+<span class="px-space-xs py-1 rounded bg-surface-container font-code-mono text-label-sm text-on-surface-variant font-bold">En Tiempo Real</span>
+</div>
+<div class="grid grid-cols-2 gap-space-md mt-space-md p-space-md bg-surface-container-low rounded-lg">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold">Total Recaudado</span>
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface mt-1" id="comp-ventas-total">$0.00 CUP</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant">Tickets completados en TPV</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold">Costo de Mercancía</span>
+<span class="font-headline-lg text-headline-lg font-bold text-secondary mt-1" id="comp-costo-total">$0.00 CUP</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant">Base PMP auditada</span>
+</div>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[#065f46] text-[18px]">add_circle</span>
+<span class="font-body-bold text-body-bold text-[#065f46]" id="comp-ganancia-inline">+$0.00 CUP utilidad neta</span>
+</div>
+<div class="w-1/3 bg-surface-container h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" id="comp-margin-bar" style="width: 0%;"></div>
+</div>
+</div>
+</div>
+<!-- Comparative: Turno Activo -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[#065f46] text-[20px]">account_balance_wallet</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Estado de Gaveta y Turno</h2>
+</div>
+<span class="px-space-xs py-1 rounded bg-surface-container font-code-mono text-label-sm text-on-surface-variant font-bold" id="comp-turno-badge">Gaveta 01</span>
+</div>
+<div class="grid grid-cols-2 gap-space-md mt-space-md p-space-md bg-surface-container-low rounded-lg">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold">Efectivo Turno + Fondo</span>
+<span class="font-headline-lg text-headline-lg font-bold text-[#065f46] mt-1" id="comp-efectivo-gaveta">$10,000.00 CUP</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant" id="comp-fondo-label">Fondo inicial: $10,000.00</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-semibold">Transferencias Turno</span>
+<span class="font-headline-lg text-headline-lg font-bold text-secondary mt-1" id="comp-transferencias-turno">$0.00 CUP</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant">Validado en SQLite</span>
+</div>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[#065f46] text-[18px]">verified</span>
+<span class="font-body-bold text-body-bold text-[#065f46]" id="comp-cajero-label">Turno operativo activo</span>
+</div>
+<a class="text-label-sm font-label-sm font-bold text-primary hover:underline" href="/pos">Ir a Ventas (TPV) →</a>
+</div>
+</div>
+</div>
+<!-- Visual Charts Row (Under KPIs as strictly requested) -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-space-md">
+<!-- Recharts Weekly Sales Performance Chart (SQLite Live) -->
+<div class="xl:col-span-2" id="dashboard-weekly-sales-chart-root"></div>
+<!-- Bar Chart: Payment Methods Distribution & Weekly Volume -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Canales de Pago &amp; Recaudación</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Desglose semanal en pasarelas locales</p>
+</div>
+<!-- Payment methods breakdown bars -->
+<div class="space-y-space-md my-space-md">
+<!-- Efectivo CUP -->
+<div>
+<div class="flex justify-between items-center text-label-md font-label-md mb-1">
+<span class="font-semibold text-on-surface flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+                Efectivo CUP (Caja Física)
+              </span>
+<span class="font-code-mono text-on-surface font-bold" id="canal-efectivo-val">$0 <span class="text-on-surface-variant font-normal">(0%)</span></span>
+</div>
+<div class="w-full bg-surface-container h-3 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" id="canal-efectivo-bar" style="width: 0%;"></div>
+</div>
+</div>
+<!-- Transferencia -->
+<div>
+<div class="flex justify-between items-center text-label-md font-label-md mb-1">
+<span class="font-semibold text-on-surface flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-[#10b981]"></span>
+                Transfermóvil / EnZona
+              </span>
+<span class="font-code-mono text-on-surface font-bold" id="canal-transfer-val">$0 <span class="text-on-surface-variant font-normal">(0%)</span></span>
+</div>
+<div class="w-full bg-surface-container h-3 rounded-full overflow-hidden">
+<div class="bg-[#10b981] h-full rounded-full" id="canal-transfer-bar" style="width: 0%;"></div>
+</div>
+</div>
+<!-- Mixto -->
+<div>
+<div class="flex justify-between items-center text-label-md font-label-md mb-1">
+<span class="font-semibold text-on-surface flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></span>
+                Mixto / USD / Crédito
+              </span>
+<span class="font-code-mono text-on-surface font-bold" id="canal-mixto-val">$0 <span class="text-on-surface-variant font-normal">(0%)</span></span>
+</div>
+<div class="w-full bg-surface-container h-3 rounded-full overflow-hidden">
+<div class="bg-[#f59e0b] h-full rounded-full" id="canal-mixto-bar" style="width: 0%;"></div>
+</div>
+</div>
+</div>
+<!-- Weekly mini bar comparison chart (SVG) -->
+<div class="p-space-md bg-surface-container-low rounded-lg">
+<div class="text-label-sm font-label-sm text-on-surface-variant mb-space-xs font-semibold">
+            Volumen diario acumulado (Efectivo vs Digital)
+          </div>
+<svg class="w-full h-16" viewbox="0 0 300 80">
+<!-- Lun -->
+<rect fill="#1d4ed8" height="30" rx="1" width="12" x="15" y="45"></rect>
+<rect fill="#10b981" height="20" rx="1" width="12" x="29" y="55"></rect>
+<!-- Mar -->
+<rect fill="#1d4ed8" height="35" rx="1" width="12" x="55" y="40"></rect>
+<rect fill="#10b981" height="25" rx="1" width="12" x="69" y="50"></rect>
+<!-- Mie -->
+<rect fill="#1d4ed8" height="40" rx="1" width="12" x="95" y="35"></rect>
+<rect fill="#10b981" height="27" rx="1" width="12" x="109" y="48"></rect>
+<!-- Jue -->
+<rect fill="#1d4ed8" height="45" rx="1" width="12" x="135" y="30"></rect>
+<rect fill="#10b981" height="33" rx="1" width="12" x="149" y="42"></rect>
+<!-- Vie -->
+<rect fill="#1d4ed8" height="55" rx="1" width="12" x="175" y="20"></rect>
+<rect fill="#10b981" height="43" rx="1" width="12" x="189" y="32"></rect>
+<!-- Sab -->
+<rect fill="#1d4ed8" height="65" rx="1" width="12" x="215" y="10"></rect>
+<rect fill="#10b981" height="53" rx="1" width="12" x="229" y="22"></rect>
+<!-- Dom -->
+<rect fill="#1d4ed8" height="70" rx="1" width="12" x="255" y="5"></rect>
+<rect fill="#10b981" height="60" rx="1" width="12" x="269" y="15"></rect>
+</svg>
+<div class="flex justify-between text-[10px] text-on-surface-variant font-code-mono mt-1 px-1">
+<span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+</div>
+</div>
+<div class="mt-space-sm pt-space-xs flex items-center justify-between text-label-sm font-label-sm text-on-surface-variant">
+<span>Pasarelas electrónicas:</span>
+<span class="font-bold text-[#065f46]" id="canal-digital-pct">0.0% del total</span>
+</div>
+</div>
+</div>
+<!-- Best Sellers Section: Dual Ranking (Volume & Profit) -->
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-space-md">
+<!-- Ranking por Cantidad Vendida -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-xs">
+<div class="w-8 h-8 rounded-lg bg-surface-container text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">format_list_numbered</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Productos Más Vendidos (Por Unidades)</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Mayor rotación en góndola esta semana</p>
+</div>
+</div>
+<span class="text-label-sm font-label-sm bg-surface-container px-2 py-1 rounded text-on-surface font-semibold">Top 5 Unidades</span>
+</div>
+<div class="space-y-space-sm" id="top-units-list">
+<div class="p-space-md rounded-lg bg-surface-container-low text-center text-on-surface-variant text-label-md">
+Cargando ranking de unidades desde SQLite...
+</div>
+</div>
+</div>
+<!-- Ranking por Ingresos y Ganancia Aportada -->
+<div class="bg-white p-space-lg rounded-2xl border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-xs">
+<div class="w-8 h-8 rounded-lg bg-[#ecfdf5] text-[#065f46] flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">monetization_on</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Ranking por Ingreso y Ganancia</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Mayor impacto neto en la caja del negocio</p>
+</div>
+</div>
+<span class="text-label-sm font-label-sm bg-[#ecfdf5] text-[#065f46] px-2 py-1 rounded font-semibold">Top Rentabilidad</span>
+</div>
+<div class="space-y-space-sm" id="top-revenue-list">
+<div class="p-space-md rounded-lg bg-surface-container-low text-center text-on-surface-variant text-label-md">
+Cargando rentabilidad desde SQLite...
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+  let lastKpiSnapshot = null;
+
+  function fmtMoney(n) {
+    return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  async function loadDashboardData() {
+    try {
+      const [kpiRes, prodRes, turnoRes] = await Promise.all([
+        fetch('/api/dashboard/kpis'),
+        fetch('/api/productos'),
+        fetch('/api/turnos/activo')
+      ]);
+      const kpis = await kpiRes.json();
+      const prodData = await prodRes.json();
+      const turnoData = await turnoRes.json();
+      lastKpiSnapshot = kpis;
+
+      const ventas = Number(kpis.ventas_hoy_monto || 0);
+      const ganancia = Number(kpis.ganancia_neta_calculada || 0);
+      const costo = Number(kpis.costo_deducido || 0);
+      const tickets = Number(kpis.ventas_hoy_cantidad || 0);
+      const deudaProv = Number(kpis.deuda_proveedores_efectivo || 0);
+      const bajoStockCount = Number(kpis.productos_alerta_stock || 0);
+      const invValor = Number(prodData.stats?.valor_venta_total || 0);
+
+      const margenPct = ventas > 0 ? ((ganancia / ventas) * 100) : 0;
+      const ticketProm = tickets > 0 ? (ventas / tickets) : 0;
+
+      const vWhole = Math.floor(ventas).toLocaleString('en-US');
+      const vDec = (ventas % 1).toFixed(2).substring(1);
+      document.getElementById('kpi-ventas-monto').innerHTML = `$${vWhole}<span class="text-headline-sm font-headline-sm font-normal text-on-surface-variant">${vDec} CUP</span>`;
+      document.getElementById('kpi-ventas-sub').textContent = `${tickets} tickets completados`;
+
+      const gWhole = Math.floor(ganancia).toLocaleString('en-US');
+      const gDec = (ganancia % 1).toFixed(2).substring(1);
+      document.getElementById('kpi-ganancia-monto').innerHTML = `$${gWhole}<span class="text-headline-sm font-headline-sm font-normal text-on-surface-variant">${gDec} CUP</span>`;
+      document.getElementById('kpi-margen-badge').innerHTML = `<span class="material-symbols-outlined text-[14px]">percent</span>${margenPct.toFixed(1)}%`;
+      document.getElementById('kpi-costo-deducido').textContent = `Costo deducido: $${fmtMoney(costo)}`;
+
+      document.getElementById('kpi-tickets-count').innerHTML = `${tickets} <span class="text-headline-sm font-headline-sm font-normal text-on-surface-variant">tickets</span>`;
+      document.getElementById('kpi-ticket-promedio').textContent = `$${fmtMoney(ticketProm)} CUP`;
+
+      const dWhole = Math.floor(deudaProv).toLocaleString('en-US');
+      const dDec = (deudaProv % 1).toFixed(2).substring(1);
+      document.getElementById('kpi-deuda-prov').innerHTML = `$${dWhole}<span class="text-headline-sm font-headline-sm font-normal text-on-surface-variant">${dDec} CUP</span>`;
+      document.getElementById('kpi-stock-alerta-badge').innerHTML = `<span class="material-symbols-outlined text-[14px]">warning</span>${bajoStockCount} alertas stock`;
+      document.getElementById('kpi-valor-inventario').textContent = `$${fmtMoney(invValor)} CUP`;
+
+      document.getElementById('comp-ventas-total').textContent = `$${fmtMoney(ventas)} CUP`;
+      document.getElementById('comp-costo-total').textContent = `$${fmtMoney(costo)} CUP`;
+      document.getElementById('comp-ganancia-inline').textContent = `+$${fmtMoney(ganancia)} CUP utilidad neta`;
+      document.getElementById('comp-margin-bar').style.width = `${Math.min(100, Math.round(margenPct))}%`;
+
+      if (turnoData.turno) {
+        const t = turnoData.turno;
+        const fondo = Number(t.fondo_inicial_cup || 0);
+        const ef = Number(t.total_ventas_efectivo_cup || 0);
+        const tr = Number(t.total_ventas_transferencia_cup || 0);
+        const gaveta = fondo + ef - Number(t.total_sangrias_cup || 0) - Number(t.total_egresos_caja_chica_cup || 0);
+        document.getElementById('kpi-gaveta-estado').textContent = `${t.caja_numero} (${t.estado})`;
+        document.getElementById('comp-turno-badge').textContent = t.caja_numero;
+        document.getElementById('comp-efectivo-gaveta').textContent = `$${fmtMoney(gaveta)} CUP`;
+        document.getElementById('comp-fondo-label').textContent = `Fondo inicial: $${fmtMoney(fondo)}`;
+        document.getElementById('comp-transferencias-turno').textContent = `$${fmtMoney(tr)} CUP`;
+        document.getElementById('comp-cajero-label').textContent = `Turno activo · ${t.caja_numero || 'Caja 01'}`;
+      }
+
+      // Canales de Pago
+      let sumEf = 0, sumTr = 0, sumMix = 0;
+      (kpis.canales || []).forEach((c) => {
+        const m = String(c.metodo_pago || '').toUpperCase();
+        const tot = Number(c.total || 0);
+        if (m === 'EFECTIVO') sumEf += tot;
+        else if (m === 'TRANSFERENCIA') sumTr += tot;
+        else sumMix += tot;
+      });
+      const totalCanales = sumEf + sumTr + sumMix;
+      const pctEf = totalCanales > 0 ? (sumEf / totalCanales) * 100 : 0;
+      const pctTr = totalCanales > 0 ? (sumTr / totalCanales) * 100 : 0;
+      const pctMix = totalCanales > 0 ? (sumMix / totalCanales) * 100 : 0;
+
+      document.getElementById('canal-efectivo-val').innerHTML = `$${fmtMoney(sumEf)} <span class="text-on-surface-variant font-normal">(${pctEf.toFixed(1)}%)</span>`;
+      document.getElementById('canal-efectivo-bar').style.width = `${pctEf.toFixed(1)}%`;
+      document.getElementById('canal-transfer-val').innerHTML = `$${fmtMoney(sumTr)} <span class="text-on-surface-variant font-normal">(${pctTr.toFixed(1)}%)</span>`;
+      document.getElementById('canal-transfer-bar').style.width = `${pctTr.toFixed(1)}%`;
+      document.getElementById('canal-mixto-val').innerHTML = `$${fmtMoney(sumMix)} <span class="text-on-surface-variant font-normal">(${pctMix.toFixed(1)}%)</span>`;
+      document.getElementById('canal-mixto-bar').style.width = `${pctMix.toFixed(1)}%`;
+      document.getElementById('canal-digital-pct').textContent = `${(pctTr + pctMix).toFixed(1)}% del total`;
+
+      // Top Productos
+      const topUnitsList = document.getElementById('top-units-list');
+      const topRevList = document.getElementById('top-revenue-list');
+      const top = kpis.top_productos || [];
+      if (top.length === 0) {
+        const emptyMsg = '<div class="p-space-md rounded-lg bg-surface-container-low text-center text-on-surface-variant text-label-md">Aún no hay ventas registradas en SQLite. Realiza un cobro en <a class="text-primary font-bold underline" href="/pos">Ventas (TPV)</a> para ver las estadísticas.</div>';
+        topUnitsList.innerHTML = emptyMsg;
+        topRevList.innerHTML = emptyMsg;
+      } else {
+        const maxUds = Math.max(...top.map((p) => Number(p.unidades || 0)), 1);
+        topUnitsList.innerHTML = top.map((p, idx) => {
+          const uds = Number(p.unidades || 0);
+          const pct = Math.round((uds / maxUds) * 100);
+          const stock = Number(p.stock_actual || 0);
+          const stockBadge = stock <= 0
+            ? 'bg-[#fef2f2] text-[#991b1b]'
+            : (stock <= 15 ? 'bg-[#fffbeb] text-[#92400e]' : 'bg-[#ecfdf5] text-[#065f46]');
+          return `
+            <div class="p-space-sm rounded-lg bg-surface-container-low flex items-center justify-between gap-space-md">
+              <div class="flex items-center gap-space-md min-w-0">
+                <span class="font-code-mono text-label-md font-bold text-primary w-5 text-center">#${idx + 1}</span>
+                <div class="min-w-0">
+                  <div class="font-body-bold text-body-bold text-on-surface truncate">${escapeHtml(p.descripcion)}</div>
+                  <div class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-2">
+                    <span class="font-code-mono">${escapeHtml(p.sku)}</span>
+                    <span>•</span>
+                    <span>${escapeHtml(p.categoria_nombre || 'General')}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-space-lg text-right shrink-0">
+                <div>
+                  <span class="font-code-mono font-bold text-on-surface">${uds} uds</span>
+                  <div class="w-24 bg-surface-container h-1.5 rounded-full mt-1">
+                    <div class="bg-primary h-full rounded-full" style="width: ${pct}%;"></div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span class="inline-flex px-2 py-0.5 rounded ${stockBadge} font-code-mono text-label-sm font-bold">${stock} en stock</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        const sortedByRev = [...top].sort((a, b) => Number(b.ingresos || 0) - Number(a.ingresos || 0));
+        topRevList.innerHTML = sortedByRev.map((p, idx) => {
+          const ing = Number(p.ingresos || 0);
+          const cost = Number(p.costo_total || 0);
+          const prof = Math.max(0, ing - cost);
+          const margin = ing > 0 ? ((prof / ing) * 100) : 0;
+          return `
+            <div class="p-space-sm rounded-lg bg-surface-container-low flex items-center justify-between gap-space-md">
+              <div class="flex items-center gap-space-md min-w-0">
+                <span class="font-code-mono text-label-md font-bold text-[#065f46] w-5 text-center">${idx + 1}°</span>
+                <div class="min-w-0">
+                  <div class="font-body-bold text-body-bold text-on-surface truncate">${escapeHtml(p.descripcion)}</div>
+                  <div class="font-label-sm text-label-sm text-on-surface-variant">
+                    Margen bruto: <span class="text-on-surface font-semibold">${margin.toFixed(1)}%</span> • ${Number(p.unidades || 0)} vendidos
+                  </div>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="font-code-mono font-bold text-on-surface text-body-bold">$${fmtMoney(ing)} CUP</div>
+                <div class="font-label-sm text-label-sm text-[#065f46] font-semibold">+$${fmtMoney(prof)} Ganancia</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      window.dispatchEvent(new CustomEvent('dashboard:refresh'));
+    } catch (err) {
+      console.error('Error cargando dashboard:', err);
+    }
+  }
+
+  function exportDashboardSummary() {
+    if (!lastKpiSnapshot) {
+      alert('Espera a que se carguen los datos antes de exportar.');
+      return;
+    }
+    const blob = new Blob([JSON.stringify(lastKpiSnapshot, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `resumen_tienda_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    alert('Resumen JSON exportado desde SQLite local.');
+  }
+
+  document.addEventListener('DOMContentLoaded', loadDashboardData);
+</script>
+</main></div></body></html>

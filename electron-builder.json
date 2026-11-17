@@ -3,6 +3,7 @@
   "appId": "com.gestortienda.desktop",
   "productName": "Gestor Tienda",
   "asar": true,
+  "compression": "normal",
   "directories": {
     "output": "dist-win"
   },
@@ -19,7 +20,8 @@
       "filter": [
         "*.html",
         "assets/**/*",
-        "css/**/*"
+        "css/**/*",
+        "public/assets/tailwind-cdn.js"
       ]
     }
   ],
