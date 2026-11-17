@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+out/
+*.map
+*.dll
+*.exe
+*.so
+*.bin
+*.pak
+*.asar
+*.pdb

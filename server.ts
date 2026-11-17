@@ -2193,6 +2193,16 @@ app.use((req: Request, res: Response, next) => {
 
   if (targetFile.endsWith('.html')) {
     let html = fs.readFileSync(fullPath, 'utf8');
+    // Offline hardening: strip any remote resource (Google Fonts, CDNs) so the
+    // app never requires an internet connection; local fallbacks are injected.
+    html = html.replace(/<link\b[^>]*\bhref=["']https?:\/\/[^"']+["'][^>]*>\s*/gi, '');
+    html = html.replace(/<script\b[^>]*\bsrc=["']https?:\/\/[^"']+["'][^>]*>\s*<\/script>\s*/gi, '');
+    if (!html.includes('/css/tailwind.min.css')) {
+      html = html.replace('</head>', '  <link rel="stylesheet" href="/css/tailwind.min.css"/>\n</head>');
+    }
+    if (!html.includes('/css/material-icons.css')) {
+      html = html.replace('</head>', '  <link rel="stylesheet" href="/css/material-icons.css"/>\n</head>');
+    }
     html = html.replace(/src=["']https?:\/\/lh3\.googleusercontent\.com\/[^"']+["']/gi, 'src="/assets/logo-placeholder.svg"');
     if (!html.includes('<title>')) {
       html = html.replace('<head>', '<head><title>Gestor Tienda</title>');
