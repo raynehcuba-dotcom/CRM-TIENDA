@@ -1,0 +1,25 @@
+{
+  "name": "gestor-tienda",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "esbuild src/inventory-client.tsx --bundle --format=esm --minify --outfile=assets/inventory-app.js && esbuild src/dashboard-client.tsx --bundle --format=esm --minify --outfile=assets/dashboard-app.js && esbuild src/pos-client.tsx --bundle --format=esm --minify --outfile=assets/pos-app.js && esbuild src/suppliers-client.tsx --bundle --format=esm --minify --outfile=assets/suppliers-app.js && tsc",
+    "start": "node dist/server.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "express": "^5.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "recharts": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

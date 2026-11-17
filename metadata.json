@@ -1,0 +1,5 @@
+{
+  "name": "Gestor Tienda",
+  "description": "Sistema local de gestión de ventas (TPV), inventario, proveedores, caja chica y cuadre semanal para tienda.",
+  "requestFramePermissions": []
+}
