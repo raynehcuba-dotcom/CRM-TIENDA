@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { InventoryItem } from './InventoryTable.js';
+import {
+  getStoredThresholdConfig,
+  sanitizeThresholdValue,
+  saveThresholdConfig,
+  THRESHOLD_CHANGED_EVENT,
+  type ThresholdConfig,
+  type ThresholdMode,
+} from '../utils/thresholdConfig.js';
 
 export interface RestockPrioritySummaryProps {
   apiEndpoint?: string;
@@ -7,7 +15,6 @@ export interface RestockPrioritySummaryProps {
 }
 
 type PriorityTier = 1 | 2 | 3;
-type ThresholdMode = 'item' | 'fixed';
 
 interface PrioritizedItem {
   item: InventoryItem;
@@ -31,12 +38,20 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
   apiEndpoint = '/api/productos',
   onRestockSuccess,
 }) => {
+  const initialThreshold = useMemo(() => getStoredThresholdConfig(), []);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [thresholdMode, setThresholdMode] = useState<ThresholdMode>('item');
-  const [fixedThreshold, setFixedThreshold] = useState<number>(25);
+  const [thresholdMode, setThresholdMode] = useState<ThresholdMode>(initialThreshold.mode);
+  const [fixedThreshold, setFixedThreshold] = useState<number>(initialThreshold.fixedMinimum);
   const [collapsed, setCollapsed] = useState<boolean>(false);
+
+  const updateThreshold = useCallback((nextMode: ThresholdMode, nextFixed: number) => {
+    const clean = sanitizeThresholdValue(nextFixed, 25);
+    setThresholdMode(nextMode);
+    setFixedThreshold(clean);
+    saveThresholdConfig({ mode: nextMode, fixedMinimum: clean });
+  }, []);
 
   // Inline quick-restock state for a specific item ID
   const [restockItemId, setRestockItemId] = useState<number | null>(null);
@@ -68,11 +83,19 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
     const handleRefresh = () => {
       void fetchProducts();
     };
+    const handleThresholdSync = (event: Event) => {
+      const detail = (event as CustomEvent<ThresholdConfig>).detail;
+      if (!detail) return;
+      setThresholdMode(detail.mode);
+      setFixedThreshold(detail.fixedMinimum);
+    };
     window.addEventListener('dashboard:refresh', handleRefresh);
     window.addEventListener('inventory:updated', handleRefresh);
+    window.addEventListener(THRESHOLD_CHANGED_EVENT, handleThresholdSync);
     return () => {
       window.removeEventListener('dashboard:refresh', handleRefresh);
       window.removeEventListener('inventory:updated', handleRefresh);
+      window.removeEventListener(THRESHOLD_CHANGED_EVENT, handleThresholdSync);
     };
   }, [fetchProducts]);
 
@@ -89,7 +112,7 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
       const stock = Number(item.stock_actual);
       const threshold =
         thresholdMode === 'fixed'
-          ? Math.max(1, fixedThreshold)
+          ? Math.max(0, fixedThreshold)
           : Math.max(0, Number(item.stock_minimo));
 
       if (stock > 0 && stock >= threshold) {
@@ -275,21 +298,21 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
             <select
               className="bg-transparent font-label-sm text-label-sm text-on-surface focus:outline-none cursor-pointer"
               id="dash-threshold-mode"
-              onChange={(e) => setThresholdMode(e.target.value as ThresholdMode)}
+              onChange={(e) => updateThreshold(e.target.value as ThresholdMode, fixedThreshold)}
               value={thresholdMode}
             >
               <option value="item">Mínimo por artículo</option>
-              <option value="fixed">Umbral fijo</option>
+              <option value="fixed">Mínimo global definido</option>
             </select>
             {thresholdMode === 'fixed' && (
               <div className="flex items-center gap-1 pl-1 border-l border-outline-variant/40">
                 <input
-                  aria-label="Umbral fijo de stock en dashboard"
+                  aria-label="Mínimo global definido en dashboard"
                   className="w-14 h-7 px-1.5 rounded bg-surface-container-low text-on-surface font-code-mono tabular-nums text-label-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
-                  min={1}
+                  min={0}
                   onChange={(e) => {
                     const val = Number(e.target.value);
-                    setFixedThreshold(Number.isNaN(val) || val < 1 ? 1 : Math.floor(val));
+                    updateThreshold('fixed', Number.isNaN(val) || val < 0 ? 0 : Math.floor(val));
                   }}
                   type="number"
                   value={fixedThreshold}

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   InventoryTable,
+  type InventoryAlertSummary,
   type InventoryItem,
   type InventoryStats,
 } from './components/InventoryTable.js';
@@ -98,6 +99,13 @@ const InventoryWorkspace: React.FC = () => {
     };
   }, [openCreateForm, openEditForm]);
 
+  const handleAlertSummaryChange = useCallback((summary: InventoryAlertSummary) => {
+    const kpiBajo = document.getElementById('kpi-bajo-stock');
+    if (kpiBajo) {
+      kpiBajo.textContent = String(summary.lowStock);
+    }
+  }, []);
+
   return (
     <>
       <InventoryTable
@@ -112,6 +120,7 @@ const InventoryWorkspace: React.FC = () => {
             );
           }
         }}
+        onAlertSummaryChange={handleAlertSummaryChange}
         onCreateProduct={openCreateForm}
         onDeleteItem={openDeleteForm}
         onEditItem={openEditForm}
@@ -119,6 +128,12 @@ const InventoryWorkspace: React.FC = () => {
           showToast(`Reporte CSV "${filename}" exportado (${count} artículos).`, 'success');
         }}
         onItemsLoaded={handleItemsLoaded}
+        onMinThresholdSaved={(savedItem, newMin) => {
+          showToast(
+            `Mínimo de "${savedItem.descripcion}" actualizado a ${newMin} u. en SQLite.`,
+            'success'
+          );
+        }}
       />
 
       <InventoryItemForm

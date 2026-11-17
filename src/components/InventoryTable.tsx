@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildInventoryCsv, getInventoryCsvFilename } from '../utils/csvExport.js';
+import {
+  getStoredThresholdConfig,
+  sanitizeThresholdValue,
+  saveThresholdConfig,
+  THRESHOLD_CHANGED_EVENT,
+  type ThresholdConfig,
+  type ThresholdMode,
+} from '../utils/thresholdConfig.js';
 
 export interface InventoryItem {
   id: number;
@@ -27,6 +35,15 @@ export interface InventoryStats {
   bajo_stock_count: number;
 }
 
+export interface InventoryAlertSummary {
+  lowStock: number;
+  outOfStock: number;
+  belowOnly: number;
+  totalDeficit: number;
+  thresholdMode: ThresholdMode;
+  fixedThreshold: number;
+}
+
 export interface InventoryTableProps {
   apiEndpoint?: string;
   lowStockThreshold?: number;
@@ -36,11 +53,12 @@ export interface InventoryTableProps {
   onCreateProduct?: () => void;
   onExportCsv?: (count: number, filename: string) => void;
   onItemsLoaded?: (items: InventoryItem[], stats: InventoryStats | null) => void;
+  onAlertSummaryChange?: (summary: InventoryAlertSummary) => void;
+  onMinThresholdSaved?: (item: InventoryItem, newMin: number) => void;
 }
 
 type CategoryFilter = 'all' | 'alimentos' | 'aseo' | 'ferreteria' | 'electronica' | 'bajo-stock';
 type SortKey = 'nombre' | 'stock-asc' | 'stock-desc' | 'precio-desc' | 'precio-asc';
-type ThresholdMode = 'item' | 'fixed';
 type SearchScope = 'name' | 'all';
 
 function normalizeSearchText(value: string): string {
@@ -110,7 +128,16 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   onCreateProduct,
   onExportCsv,
   onItemsLoaded,
+  onAlertSummaryChange,
+  onMinThresholdSaved,
 }) => {
+  const initialThreshold = useMemo<ThresholdConfig>(() => {
+    if (lowStockThreshold !== undefined) {
+      return { mode: 'fixed', fixedMinimum: sanitizeThresholdValue(lowStockThreshold, 25) };
+    }
+    return getStoredThresholdConfig();
+  }, [lowStockThreshold]);
+
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,15 +145,37 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   const [searchScope, setSearchScope] = useState<SearchScope>('name');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [sortBy, setSortBy] = useState<SortKey>('stock-asc');
-  const [thresholdMode, setThresholdMode] = useState<ThresholdMode>(
-    lowStockThreshold !== undefined ? 'fixed' : 'item'
+  const [thresholdMode, setThresholdMode] = useState<ThresholdMode>(initialThreshold.mode);
+  const [fixedThreshold, setFixedThreshold] = useState<number>(initialThreshold.fixedMinimum);
+  const [thresholdInputText, setThresholdInputText] = useState<string>(
+    String(initialThreshold.fixedMinimum)
   );
-  const [fixedThreshold, setFixedThreshold] = useState<number>(lowStockThreshold ?? 25);
+
+  // Inline per-item minimum threshold editor
+  const [editingMinItemId, setEditingMinItemId] = useState<number | null>(null);
+  const [editingMinDraft, setEditingMinDraft] = useState<string>('');
+  const [savingMinItemId, setSavingMinItemId] = useState<number | null>(null);
+  const [minEditError, setMinEditError] = useState<string | null>(null);
 
   const getEffectiveThreshold = useCallback(
     (item: InventoryItem): number =>
-      thresholdMode === 'fixed' ? Math.max(1, fixedThreshold) : Math.max(0, Number(item.stock_minimo)),
+      thresholdMode === 'fixed'
+        ? Math.max(0, fixedThreshold)
+        : Math.max(0, Number(item.stock_minimo)),
     [thresholdMode, fixedThreshold]
+  );
+
+  const updateThresholdConfig = useCallback(
+    (nextMode: ThresholdMode, nextFixed: number) => {
+      const normalizedFixed = sanitizeThresholdValue(nextFixed, 25);
+      setThresholdMode(nextMode);
+      setFixedThreshold(normalizedFixed);
+      setThresholdInputText(String(normalizedFixed));
+      if (lowStockThreshold === undefined) {
+        saveThresholdConfig({ mode: nextMode, fixedMinimum: normalizedFixed });
+      }
+    },
+    [lowStockThreshold]
   );
 
   const fetchInventory = useCallback(async () => {
@@ -159,11 +208,22 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     const handleExternalUpdate = () => {
       void fetchInventory();
     };
+    const handleThresholdSync = (event: Event) => {
+      if (lowStockThreshold !== undefined) return;
+      const detail = (event as CustomEvent<ThresholdConfig>).detail;
+      if (!detail) return;
+      setThresholdMode(detail.mode);
+      setFixedThreshold(detail.fixedMinimum);
+      setThresholdInputText(String(detail.fixedMinimum));
+    };
+
     window.addEventListener('inventory:updated', handleExternalUpdate);
+    window.addEventListener(THRESHOLD_CHANGED_EVENT, handleThresholdSync);
     return () => {
       window.removeEventListener('inventory:updated', handleExternalUpdate);
+      window.removeEventListener(THRESHOLD_CHANGED_EVENT, handleThresholdSync);
     };
-  }, [fetchInventory]);
+  }, [fetchInventory, lowStockThreshold]);
 
   const counts = useMemo(() => {
     const summary = {
@@ -175,6 +235,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       lowStock: 0,
       outOfStock: 0,
       belowOnly: 0,
+      totalDeficit: 0,
     };
     for (const item of items) {
       const slug = getCategorySlug(item.categoria_nombre);
@@ -184,13 +245,73 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       if (stock <= 0) {
         summary.lowStock += 1;
         summary.outOfStock += 1;
+        summary.totalDeficit += Math.max(1, threshold);
       } else if (stock < threshold) {
         summary.lowStock += 1;
         summary.belowOnly += 1;
+        summary.totalDeficit += Math.max(0, threshold - stock);
       }
     }
     return summary;
   }, [items, getEffectiveThreshold]);
+
+  useEffect(() => {
+    if (loading || !onAlertSummaryChange) return;
+    onAlertSummaryChange({
+      lowStock: counts.lowStock,
+      outOfStock: counts.outOfStock,
+      belowOnly: counts.belowOnly,
+      totalDeficit: counts.totalDeficit,
+      thresholdMode,
+      fixedThreshold,
+    });
+  }, [loading, counts, thresholdMode, fixedThreshold, onAlertSummaryChange]);
+
+  const handleStartEditMin = (item: InventoryItem) => {
+    setEditingMinItemId(item.id);
+    setEditingMinDraft(String(Math.max(0, Number(item.stock_minimo ?? 0))));
+    setMinEditError(null);
+  };
+
+  const handleSaveItemMinimum = async (item: InventoryItem) => {
+    const trimmed = editingMinDraft.trim();
+    const nextMin = Number(trimmed);
+    if (!trimmed || Number.isNaN(nextMin) || nextMin < 0) {
+      setMinEditError('Ingresa un mínimo válido (>= 0).');
+      return;
+    }
+
+    setSavingMinItemId(item.id);
+    setMinEditError(null);
+
+    try {
+      const response = await fetch(`/api/productos/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock_minimo: Math.floor(nextMin) }),
+      });
+      const data = (await response.json()) as {
+        success?: boolean;
+        producto?: InventoryItem;
+        error?: string;
+      };
+      if (!response.ok || !data.success || !data.producto) {
+        throw new Error(data.error || 'No se pudo actualizar el stock mínimo en SQLite');
+      }
+
+      setItems((prev) =>
+        prev.map((row) => (row.id === item.id ? { ...row, stock_minimo: data.producto!.stock_minimo } : row))
+      );
+      setEditingMinItemId(null);
+      setEditingMinDraft('');
+      window.dispatchEvent(new CustomEvent('inventory:updated'));
+      onMinThresholdSaved?.(data.producto, Number(data.producto.stock_minimo));
+    } catch (err) {
+      setMinEditError(err instanceof Error ? err.message : 'Error al guardar umbral mínimo');
+    } finally {
+      setSavingMinItemId(null);
+    }
+  };
 
   const filteredItems = useMemo(() => {
     const q = normalizeSearchText(searchQuery.trim());
@@ -349,32 +470,56 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           </div>
 
           <div className="lg:col-span-7 flex flex-wrap items-center justify-start lg:justify-end gap-space-sm">
-            <div className="flex items-center gap-space-xs bg-surface-container-low px-space-sm h-10 rounded-xl">
-              <span className="material-symbols-outlined text-[18px] text-amber-700">warning</span>
-              <label className="font-label-sm text-label-sm text-on-surface-variant whitespace-nowrap" htmlFor="react-inv-threshold-mode">
-                Umbral:
+            <div className="flex flex-wrap items-center gap-space-xs bg-surface-container-low px-space-sm py-1.5 min-h-10 rounded-xl border border-outline-variant/40">
+              <span className="material-symbols-outlined text-[18px] text-amber-700">tune</span>
+              <label
+                className="font-label-sm text-label-sm text-on-surface-variant whitespace-nowrap"
+                htmlFor="react-inv-threshold-mode"
+              >
+                Alerta mínima:
               </label>
               <select
-                className="bg-transparent font-label-sm text-label-sm text-on-surface focus:outline-none cursor-pointer"
+                className="bg-transparent font-label-sm text-label-sm font-semibold text-on-surface focus:outline-none cursor-pointer"
                 id="react-inv-threshold-mode"
-                onChange={(e) => setThresholdMode(e.target.value as ThresholdMode)}
+                onChange={(e) =>
+                  updateThresholdConfig(e.target.value as ThresholdMode, fixedThreshold)
+                }
                 value={thresholdMode}
               >
                 <option value="item">Mínimo por artículo</option>
-                <option value="fixed">Umbral fijo</option>
+                <option value="fixed">Mínimo global definido</option>
               </select>
               {thresholdMode === 'fixed' && (
-                <div className="flex items-center gap-1 pl-1 border-l border-outline-variant/40">
+                <div className="flex items-center gap-1 pl-1.5 border-l border-outline-variant/40">
                   <input
-                    aria-label="Valor del umbral fijo de stock"
-                    className="w-14 h-7 px-1.5 rounded-lg bg-surface-container-lowest text-on-surface font-code-mono tabular-nums text-label-sm text-right focus:outline-none focus:ring-1 focus:ring-primary"
-                    min={1}
+                    aria-label="Mínimo global definido para alertas de stock"
+                    className="w-16 h-7 px-1.5 rounded-lg bg-surface-container-lowest border border-outline-variant/60 text-on-surface font-code-mono tabular-nums text-label-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    id="react-inv-fixed-threshold"
+                    min={0}
+                    onBlur={() => {
+                      const parsed = Number(thresholdInputText);
+                      const clean = sanitizeThresholdValue(
+                        thresholdInputText.trim() === '' ? fixedThreshold : parsed,
+                        25
+                      );
+                      updateThresholdConfig('fixed', clean);
+                    }}
                     onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setFixedThreshold(Number.isNaN(val) || val < 1 ? 1 : Math.floor(val));
+                      const raw = e.target.value;
+                      setThresholdInputText(raw);
+                      if (raw.trim() !== '') {
+                        const parsed = Number(raw);
+                        if (Number.isFinite(parsed) && parsed >= 0) {
+                          const clean = Math.floor(parsed);
+                          setFixedThreshold(clean);
+                          if (lowStockThreshold === undefined) {
+                            saveThresholdConfig({ mode: 'fixed', fixedMinimum: clean });
+                          }
+                        }
+                      }
                     }}
                     type="number"
-                    value={fixedThreshold}
+                    value={thresholdInputText}
                   />
                   <span className="font-code-mono text-[11px] text-on-surface-variant">u.</span>
                 </div>
@@ -465,57 +610,98 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         </div>
       </section>
 
-      {/* Low-Stock Warning Banner */}
-      {!loading && !error && counts.lowStock > 0 && (
+      {/* Threshold-Based Alert System Banner */}
+      {!loading && !error && (
         <section
           aria-live="polite"
-          className={`rounded-xl px-space-lg py-space-md flex flex-col sm:flex-row sm:items-center justify-between gap-space-md border ${
-            counts.outOfStock > 0
-              ? 'bg-error-container/25 border-error/25 text-on-surface'
-              : 'bg-amber-50 border-amber-300/80 text-on-surface'
+          className={`rounded-xl px-space-lg py-space-md flex flex-col lg:flex-row lg:items-center justify-between gap-space-md border ${
+            counts.lowStock === 0
+              ? 'bg-[#ecfdf5] border-[#a7f3d0] text-on-surface'
+              : counts.outOfStock > 0
+                ? 'bg-error-container/25 border-error/30 text-on-surface'
+                : 'bg-amber-50 border-amber-300 text-on-surface'
           }`}
+          id="inventory-alert-system"
           role="status"
         >
-          <div className="flex items-start sm:items-center gap-space-sm">
-            <span
-              className={`material-symbols-outlined text-[22px] shrink-0 ${
-                counts.outOfStock > 0 ? 'text-error' : 'text-amber-700'
+          <div className="flex items-start sm:items-center gap-space-sm min-w-0">
+            <div
+              className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                counts.lowStock === 0
+                  ? 'bg-[#065f46] text-white'
+                  : counts.outOfStock > 0
+                    ? 'bg-error text-on-error'
+                    : 'bg-amber-700 text-white'
               }`}
             >
-              warning
-            </span>
-            <div className="flex flex-col">
+              <span className="material-symbols-outlined text-[20px]">
+                {counts.lowStock === 0 ? 'verified' : 'notifications_active'}
+              </span>
+            </div>
+            <div className="flex flex-col min-w-0">
               <span className="font-body-bold text-body-bold text-on-surface tabular-nums">
-                Alerta de inventario: {counts.lowStock}{' '}
-                {counts.lowStock === 1 ? 'artículo por debajo del umbral' : 'artículos por debajo del umbral'}
+                {counts.lowStock === 0
+                  ? 'Niveles de stock saludables según el umbral mínimo activo'
+                  : `Alerta de umbral mínimo: ${counts.lowStock} ${
+                      counts.lowStock === 1
+                        ? 'artículo resaltado por debajo del mínimo'
+                        : 'artículos resaltados por debajo del mínimo'
+                    }`}
               </span>
               <span className="font-label-sm text-label-sm text-on-surface-variant tabular-nums">
-                {counts.outOfStock > 0 ? `${counts.outOfStock} agotados` : '0 agotados'} ·{' '}
-                {counts.belowOnly} con stock bajo ·{' '}
-                {thresholdMode === 'fixed'
-                  ? `Umbral fijo aplicado: < ${fixedThreshold} u.`
-                  : 'Umbral configurado por mínimo de cada artículo'}
+                {counts.lowStock === 0
+                  ? thresholdMode === 'fixed'
+                    ? `Ningún artículo está por debajo de ${fixedThreshold} u.`
+                    : 'Todos los artículos superan o igualan su mínimo individual en SQLite (puedes editar cada mínimo en la tabla).'
+                  : `${counts.outOfStock} agotados · ${counts.belowOnly} por debajo del mínimo · Déficit acumulado: ${counts.totalDeficit} u. · ${
+                      thresholdMode === 'fixed'
+                        ? `Mínimo global definido: < ${fixedThreshold} u.`
+                        : 'Evaluado por stock mínimo individual (editable en cada fila)'
+                    }`}
               </span>
             </div>
           </div>
 
-          <button
-            className={`px-space-md h-9 rounded-xl font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
-              categoryFilter === 'bajo-stock'
-                ? 'bg-surface-container-lowest text-on-surface hover:bg-surface-container'
-                : counts.outOfStock > 0
-                  ? 'bg-error text-on-error hover:opacity-90'
-                  : 'bg-amber-700 text-white hover:bg-amber-800'
-            }`}
-            onClick={() =>
-              setCategoryFilter((prev) => (prev === 'bajo-stock' ? 'all' : 'bajo-stock'))
-            }
-            type="button"
-          >
-            {categoryFilter === 'bajo-stock'
-              ? 'Mostrar todo el catálogo'
-              : `Ver alertas (${counts.lowStock})`}
-          </button>
+          <div className="flex flex-wrap items-center gap-space-xs shrink-0">
+            {thresholdMode === 'fixed' && (
+              <div className="flex items-center gap-1 mr-space-xs">
+                {[10, 25, 50].map((preset) => (
+                  <button
+                    className={`h-8 px-2.5 rounded-lg font-code-mono text-[11px] font-semibold border transition-colors ${
+                      fixedThreshold === preset
+                        ? 'bg-primary-container text-on-primary border-primary-container'
+                        : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant/50 hover:bg-surface-container'
+                    }`}
+                    key={preset}
+                    onClick={() => updateThresholdConfig('fixed', preset)}
+                    type="button"
+                  >
+                    {preset} u.
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {counts.lowStock > 0 && (
+              <button
+                className={`px-space-md h-9 rounded-xl font-label-sm text-label-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  categoryFilter === 'bajo-stock'
+                    ? 'bg-surface-container-lowest text-on-surface border border-outline-variant/50 hover:bg-surface-container'
+                    : counts.outOfStock > 0
+                      ? 'bg-error text-on-error hover:opacity-90'
+                      : 'bg-amber-700 text-white hover:bg-amber-800'
+                }`}
+                onClick={() =>
+                  setCategoryFilter((prev) => (prev === 'bajo-stock' ? 'all' : 'bajo-stock'))
+                }
+                type="button"
+              >
+                {categoryFilter === 'bajo-stock'
+                  ? 'Mostrar todo el catálogo'
+                  : `Solo en alerta (${counts.lowStock})`}
+              </button>
+            )}
+          </div>
         </section>
       )}
 
@@ -638,14 +824,17 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                       const deficit = Math.max(0, effectiveThreshold - stock);
                       const fillPct =
                         effectiveThreshold > 0
-                          ? Math.min(100, Math.max(isOut ? 0 : 8, Math.round((stock / effectiveThreshold) * 100)))
+                          ? Math.min(
+                              100,
+                              Math.max(isOut ? 0 : 8, Math.round((stock / effectiveThreshold) * 100))
+                            )
                           : 100;
 
                       const rowClass = isOut
-                        ? 'bg-error-container/20 hover:bg-error-container/30 transition-colors'
+                        ? 'bg-error-container/25 border-l-4 border-l-error hover:bg-error-container/35 transition-colors'
                         : isLow
-                          ? 'bg-amber-50/90 hover:bg-amber-100/70 transition-colors'
-                          : 'hover:bg-surface-container-low transition-colors';
+                          ? 'bg-amber-50/95 border-l-4 border-l-amber-500 hover:bg-amber-100/75 transition-colors'
+                          : 'border-l-4 border-l-transparent hover:bg-surface-container-low transition-colors';
 
                       const stockColor = isOut
                         ? 'text-error font-bold'
@@ -656,13 +845,17 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                       const stockStatusLabel = isOut
                         ? 'Agotado'
                         : isLow
-                          ? 'Bajo umbral'
-                          : 'Disponible';
+                          ? 'Bajo mínimo'
+                          : 'Óptimo';
+
+                      const isEditingMin = editingMinItemId === item.id;
+                      const isSavingMin = savingMinItemId === item.id;
 
                       return (
                         <tr
                           className={rowClass}
                           data-stock-alert={isOut ? 'critical' : isLow ? 'warning' : 'ok'}
+                          data-threshold-active={effectiveThreshold}
                           key={item.id}
                         >
                           <td className="py-space-md px-space-lg text-center font-code-mono tabular-nums text-outline text-label-sm">
@@ -693,17 +886,19 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                               </span>
                               {(isOut || isLow) && (
                                 <span
-                                  className={`inline-flex items-center gap-1 font-label-sm text-label-sm font-semibold tabular-nums ${
-                                    isOut ? 'text-error' : 'text-amber-800'
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-label-sm text-[11px] font-semibold tabular-nums ${
+                                    isOut
+                                      ? 'bg-error text-on-error'
+                                      : 'bg-amber-200/80 text-amber-950'
                                   }`}
                                 >
-                                  <span className="material-symbols-outlined text-[15px]">
+                                  <span className="material-symbols-outlined text-[14px]">
                                     {isOut ? 'error' : 'warning'}
                                   </span>
                                   <span>
                                     {isOut
                                       ? `Sin existencias (faltan ${deficit} u.)`
-                                      : `Por debajo del umbral (faltan ${deficit} u.)`}
+                                      : `Bajo mínimo: ${stock} < ${effectiveThreshold} (faltan ${deficit} u.)`}
                                   </span>
                                 </span>
                               )}
@@ -744,7 +939,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                               />
                             </div>
                             <div
-                              className={`font-label-sm text-[11px] tabular-nums mt-1 ${
+                              className={`font-label-sm text-[11px] tabular-nums mt-1 flex items-center justify-end gap-1 ${
                                 isOut
                                   ? 'text-error font-semibold'
                                   : isLow
@@ -753,9 +948,81 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                               }`}
                             >
                               <span>{stockStatusLabel}</span>
-                              <span aria-hidden="true"> · </span>
-                              <span>Umbral: {effectiveThreshold}</span>
+                              <span aria-hidden="true">·</span>
+                              {isEditingMin ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <input
+                                    aria-label={`Nuevo stock mínimo para ${item.descripcion}`}
+                                    className="w-14 h-6 px-1 rounded bg-surface-container-lowest border border-primary/50 text-on-surface font-code-mono text-[11px] text-right focus:outline-none"
+                                    disabled={isSavingMin}
+                                    min={0}
+                                    onChange={(e) => {
+                                      setEditingMinDraft(e.target.value);
+                                      if (minEditError) setMinEditError(null);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        void handleSaveItemMinimum(item);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingMinItemId(null);
+                                        setMinEditError(null);
+                                      }
+                                    }}
+                                    type="number"
+                                    value={editingMinDraft}
+                                  />
+                                  <button
+                                    aria-label="Guardar mínimo en SQLite"
+                                    className="w-5 h-5 rounded bg-primary text-on-primary inline-flex items-center justify-center hover:bg-primary-container disabled:opacity-50"
+                                    disabled={isSavingMin}
+                                    onClick={() => void handleSaveItemMinimum(item)}
+                                    title="Guardar mínimo"
+                                    type="button"
+                                  >
+                                    <span className="material-symbols-outlined text-[13px]">check</span>
+                                  </button>
+                                  <button
+                                    aria-label="Cancelar edición de mínimo"
+                                    className="w-5 h-5 rounded bg-surface-container text-on-surface-variant inline-flex items-center justify-center hover:bg-surface-container-high"
+                                    disabled={isSavingMin}
+                                    onClick={() => {
+                                      setEditingMinItemId(null);
+                                      setMinEditError(null);
+                                    }}
+                                    title="Cancelar"
+                                    type="button"
+                                  >
+                                    <span className="material-symbols-outlined text-[13px]">close</span>
+                                  </button>
+                                </span>
+                              ) : (
+                                <button
+                                  aria-label={`Editar mínimo de ${item.descripcion}`}
+                                  className="inline-flex items-center gap-0.5 hover:underline decoration-dotted cursor-pointer"
+                                  onClick={() => handleStartEditMin(item)}
+                                  title={
+                                    thresholdMode === 'fixed'
+                                      ? `Mínimo global activo: ${effectiveThreshold} u. (clic para editar mínimo SQLite del artículo: ${item.stock_minimo} u.)`
+                                      : `Mínimo SQLite: ${item.stock_minimo} u. (clic para editar)`
+                                  }
+                                  type="button"
+                                >
+                                  <span>
+                                    Mín: {effectiveThreshold} u.
+                                    {thresholdMode === 'fixed' && item.stock_minimo !== effectiveThreshold
+                                      ? ` (SQLite ${item.stock_minimo})`
+                                      : ''}
+                                  </span>
+                                  <span className="material-symbols-outlined text-[12px] opacity-70">
+                                    edit
+                                  </span>
+                                </button>
+                              )}
                             </div>
+                            {isEditingMin && minEditError && (
+                              <div className="text-[11px] text-error mt-0.5">{minEditError}</div>
+                            )}
                           </td>
                           <td className="py-space-md px-space-lg text-right align-middle">
                             <div className="font-code-mono tabular-nums text-body-bold text-on-surface font-bold">
