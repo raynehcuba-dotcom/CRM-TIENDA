@@ -80,6 +80,96 @@ export const app = express();
 
 app.use(express.json());
 
+// ---------------------------------------------------------------------------
+// VALIDATION & MONEY HELPERS
+// ---------------------------------------------------------------------------
+
+const PAYMENT_METHODS = new Set(['EFECTIVO', 'TRANSFERENCIA', 'MIXTO']);
+const SUPPLIER_PAYMENT_CHANNELS = new Set(['EFECTIVO_GAVETA', 'TRANSFERENCIA_BANCARIA']);
+
+/** Error controlado con código HTTP; el mensaje se devuelve al cliente. */
+class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+function respondError(res: Response, err: unknown): void {
+  if (err instanceof ApiError) {
+    res.status(err.status).json({ success: false, error: err.message });
+    return;
+  }
+  res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+}
+
+/** Redondeo monetario a 2 decimales, evitando el arrastre binario de REAL. */
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function parseMoney(value: unknown, fieldName: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new ApiError(400, `${fieldName} debe ser un monto numérico válido.`);
+  }
+  return roundMoney(parsed);
+}
+
+interface TurnoCajaRow extends Record<string, unknown> {
+  id: number;
+  caja_numero: string;
+  estado: string;
+  fondo_inicial_cup: number;
+  total_ventas_efectivo_cup: number;
+  total_abonos_credito_cup: number;
+  total_sangrias_cup: number;
+  total_egresos_caja_chica_cup: number;
+}
+
+function getTurno(turnoId: number): TurnoCajaRow | undefined {
+  return db.prepare('SELECT * FROM turnos_caja WHERE id = ?').get(turnoId) as TurnoCajaRow | undefined;
+}
+
+/** Verifica que la gaveta exista y esté abierta; corta la operación si no. */
+function requireOpenTurno(turnoId: number): TurnoCajaRow {
+  const turno = getTurno(turnoId);
+  if (!turno) {
+    throw new ApiError(400, `La gaveta #${turnoId} no existe.`);
+  }
+  if (String(turno.estado) !== 'ABIERTA') {
+    throw new ApiError(
+      409,
+      `La gaveta ${turno.caja_numero} está ${turno.estado}. Abre un nuevo turno antes de registrar movimientos.`
+    );
+  }
+  return turno;
+}
+
+function requireActiveUser(usuarioId: number, label = 'usuario'): void {
+  const row = db.prepare('SELECT id FROM usuarios WHERE id = ? AND activo = 1').get(usuarioId);
+  if (!row) {
+    throw new ApiError(400, `El ${label} #${usuarioId} no existe o está inactivo.`);
+  }
+}
+
+const FOLIO_TABLES = {
+  abonos: 'credito_abonos',
+  sangrias: 'sangrias_caja',
+  comprobantes: 'comprobantes_pago_proveedor',
+} as const;
+
+/** Folio secuencial sin colisiones (MAX(id)+1 con ids AUTOINCREMENT). */
+function nextFolio(prefix: string, table: (typeof FOLIO_TABLES)[keyof typeof FOLIO_TABLES], datePart: string): string {
+  const row = db.prepare(`SELECT COALESCE(MAX(id), 0) + 1 AS next_seq FROM ${table}`).get() as {
+    next_seq: number;
+  };
+  return `${prefix}-${datePart}-${String(Number(row?.next_seq ?? 1)).padStart(4, '0')}`;
+}
+
 // CORS headers
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -797,29 +887,163 @@ app.get('/api/ventas', (_req: Request, res: Response) => {
 
 app.post('/api/ventas', (req: Request, res: Response) => {
   try {
-    const now = new Date();
-    const ymd = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const suffix = `${String(now.getTime()).slice(-6)}${String(Math.floor(Math.random() * 90) + 10)}`;
-    const folio_ticket = `TKV-${ymd}-${suffix}`;
-
     const turno_id = Number(req.body?.turno_id ?? 1);
     const usuario_id = Number(req.body?.usuario_id ?? 1);
-    const cliente_id = req.body?.cliente_id ? Number(req.body.cliente_id) : null;
-    const metodo_pago = String(req.body?.metodo_pago ?? 'EFECTIVO');
-    const subtotal = Number(req.body?.subtotal ?? 0.0);
-    const descuento = Number(req.body?.descuento ?? 0.0);
-    const total_neto = Number(req.body?.total_neto ?? subtotal - descuento);
-    const pago_recibido = Number(req.body?.pago_recibido ?? total_neto);
-    const vuelto = Math.max(0.0, pago_recibido - total_neto);
+    const clienteRaw = req.body?.cliente_id;
+    const cliente_id =
+      clienteRaw === null || clienteRaw === undefined || clienteRaw === '' ? null : Number(clienteRaw);
+    const metodo_pago = String(req.body?.metodo_pago ?? 'EFECTIVO').trim().toUpperCase();
     const lineas = Array.isArray(req.body?.items) ? req.body.items : [];
+    const descuentoSolicitado = parseMoney(req.body?.descuento ?? 0, 'El descuento');
+    const pagoRaw = req.body?.pago_recibido;
+    const pagoDeclarado =
+      pagoRaw === null || pagoRaw === undefined || pagoRaw === '' ? null : parseMoney(pagoRaw, 'El pago recibido');
 
     if (lineas.length === 0) {
-      res.status(400).json({ success: false, error: 'El ticket no contiene artículos' });
-      return;
+      throw new ApiError(400, 'El ticket no contiene artículos');
+    }
+    if (!Number.isInteger(turno_id) || turno_id <= 0) {
+      throw new ApiError(400, 'Turno de caja inválido');
+    }
+    if (!Number.isInteger(usuario_id) || usuario_id <= 0) {
+      throw new ApiError(400, 'Usuario inválido');
+    }
+    if (!PAYMENT_METHODS.has(metodo_pago)) {
+      throw new ApiError(400, `Método de pago no soportado: "${metodo_pago}".`);
+    }
+    if (descuentoSolicitado < 0) {
+      throw new ApiError(400, 'El descuento no puede ser negativo.');
+    }
+    if (pagoDeclarado !== null && pagoDeclarado < 0) {
+      throw new ApiError(400, 'El pago recibido no puede ser negativo.');
+    }
+    if (cliente_id !== null && (!Number.isInteger(cliente_id) || cliente_id <= 0)) {
+      throw new ApiError(400, 'Cliente inválido');
     }
 
-    const updatedStocks = runInTransaction(() => {
-      const stockChanges: Array<{ producto_id: number; sku: string; descripcion: string; stock_previo: number; stock_actual: number }> = [];
+    const result = runInTransaction(() => {
+      requireOpenTurno(turno_id);
+      requireActiveUser(usuario_id, 'usuario');
+
+      if (cliente_id !== null) {
+        const clienteRow = db.prepare('SELECT id FROM clientes WHERE id = ?').get(cliente_id);
+        if (!clienteRow) {
+          throw new ApiError(400, 'El cliente seleccionado no existe.');
+        }
+      }
+
+      // Primera pasada: precios y existencias se validan contra SQLite, nunca
+      // contra los importes que envía el navegador.
+      const lineasValidadas: Array<{
+        producto_id: number;
+        cantidad: number;
+        precio_unitario: number;
+        costo_unitario: number;
+        descripcion: string;
+        sku: string;
+        proveedor_id: number | null;
+        stock_previo: number;
+      }> = [];
+      const cantidadesPorProducto = new Map<number, number>();
+      let subtotal = 0;
+
+      for (const item of lineas) {
+        const prod_id = Number(item?.producto_id);
+        const cant = Number(item?.cantidad);
+
+        if (!Number.isInteger(prod_id) || prod_id <= 0) {
+          throw new ApiError(400, 'El ticket contiene un artículo inválido.');
+        }
+        if (!Number.isFinite(cant) || cant <= 0) {
+          throw new ApiError(400, `Cantidad inválida para el artículo #${prod_id}.`);
+        }
+
+        const pRow = db
+          .prepare(
+            'SELECT sku, descripcion, proveedor_id, stock_actual, costo_pmp, costo_ultimo, precio_venta_cup FROM productos WHERE id = ? AND activo = 1'
+          )
+          .get(prod_id) as
+          | {
+              sku: string;
+              descripcion: string;
+              proveedor_id: number | null;
+              stock_actual: number;
+              costo_pmp: number;
+              costo_ultimo: number;
+              precio_venta_cup: number;
+            }
+          | undefined;
+
+        if (!pRow) {
+          throw new ApiError(400, `El producto #${prod_id} no existe o está inactivo.`);
+        }
+
+        const precioDb = roundMoney(Number(pRow.precio_venta_cup));
+        if (item?.precio_unitario !== undefined && item?.precio_unitario !== null) {
+          const precioEnviado = Number(item.precio_unitario);
+          if (!Number.isFinite(precioEnviado) || Math.abs(roundMoney(precioEnviado) - precioDb) > 0.009) {
+            throw new ApiError(
+              409,
+              `El precio de "${pRow.descripcion}" cambió a $${precioDb.toFixed(2)} CUP. Sincroniza el catálogo y vuelve a cobrar.`
+            );
+          }
+        }
+
+        const solicitado = (cantidadesPorProducto.get(prod_id) ?? 0) + cant;
+        cantidadesPorProducto.set(prod_id, solicitado);
+        const stockDisponible = Number(pRow.stock_actual);
+        if (solicitado > stockDisponible) {
+          throw new ApiError(
+            400,
+            `Stock insuficiente para "${pRow.descripcion}": disponible ${stockDisponible} u., solicitado ${solicitado} u.`
+          );
+        }
+
+        const costoUnit =
+          Number(pRow.costo_pmp) > 0
+            ? roundMoney(Number(pRow.costo_pmp))
+            : roundMoney(Number(pRow.costo_ultimo ?? 0));
+
+        lineasValidadas.push({
+          producto_id: prod_id,
+          cantidad: cant,
+          precio_unitario: precioDb,
+          costo_unitario: costoUnit,
+          descripcion: pRow.descripcion,
+          sku: pRow.sku,
+          proveedor_id: pRow.proveedor_id ? Number(pRow.proveedor_id) : null,
+          stock_previo: stockDisponible,
+        });
+        subtotal += precioDb * cant;
+      }
+
+      subtotal = roundMoney(subtotal);
+      if (descuentoSolicitado > subtotal) {
+        throw new ApiError(
+          400,
+          `El descuento ($${descuentoSolicitado.toFixed(2)} CUP) no puede superar el subtotal ($${subtotal.toFixed(2)} CUP).`
+        );
+      }
+
+      const descuento = descuentoSolicitado;
+      const total_neto = roundMoney(subtotal - descuento);
+      if (total_neto <= 0) {
+        throw new ApiError(400, 'El total del ticket debe ser mayor a 0 CUP.');
+      }
+
+      const pago_recibido = pagoDeclarado === null ? total_neto : pagoDeclarado;
+      if (pago_recibido + 0.009 < total_neto) {
+        throw new ApiError(
+          400,
+          `Pago insuficiente: recibido $${pago_recibido.toFixed(2)} CUP de un total de $${total_neto.toFixed(2)} CUP.`
+        );
+      }
+      const vuelto = roundMoney(pago_recibido - total_neto);
+
+      const now = new Date();
+      const ymd = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const suffix = `${String(now.getTime()).slice(-6)}${String(Math.floor(Math.random() * 90) + 10)}`;
+      const folio_ticket = `TKV-${ymd}-${suffix}`;
 
       const ventaInfo = db.prepare(`
         INSERT INTO ventas (
@@ -829,83 +1053,99 @@ app.post('/api/ventas', (req: Request, res: Response) => {
       `).run(folio_ticket, turno_id, usuario_id, cliente_id, metodo_pago, subtotal, descuento, total_neto, pago_recibido, vuelto);
 
       const venta_id = Number(ventaInfo.lastInsertRowid);
+      const stockChanges: Array<{ producto_id: number; sku: string; descripcion: string; stock_previo: number; stock_actual: number }> = [];
 
-      for (const item of lineas) {
-        const prod_id = Number(item.producto_id);
-        const cant = Number(item.cantidad);
-
-        const pRow = db.prepare('SELECT sku, descripcion, proveedor_id, stock_actual, costo_pmp, precio_venta_cup FROM productos WHERE id = ? AND activo = 1').get(prod_id) as
-          | { sku: string; descripcion: string; proveedor_id: number | null; stock_actual: number; costo_pmp: number; precio_venta_cup: number }
-          | undefined;
-
-        if (!pRow) {
-          throw new Error(`Producto #${prod_id} no existe o está inactivo`);
-        }
-        if (!Number.isFinite(cant) || cant <= 0) {
-          throw new Error(`Cantidad inválida para "${pRow.descripcion}"`);
-        }
-        if (cant > Number(pRow.stock_actual)) {
-          throw new Error(`Stock insuficiente para "${pRow.descripcion}": disponible ${pRow.stock_actual} u., solicitado ${cant} u.`);
-        }
-
-        const precio_unit = item.precio_unitario !== undefined ? Number(item.precio_unitario) : Number(pRow.precio_venta_cup);
-        const costo_unit = item.costo_unitario !== undefined ? Number(item.costo_unitario) : Number(pRow.costo_pmp);
-        const sub_linea = cant * precio_unit;
-        const prov_id = pRow.proveedor_id;
-        const deuda_prov = prov_id ? cant * costo_unit : 0.0;
+      for (const linea of lineasValidadas) {
+        const sub_linea = roundMoney(linea.cantidad * linea.precio_unitario);
+        const deuda_prov =
+          linea.proveedor_id !== null ? roundMoney(linea.cantidad * linea.costo_unitario) : 0.0;
 
         db.prepare(`
           INSERT INTO venta_detalles (
             venta_id, producto_id, proveedor_id, cantidad, costo_unitario_historico,
             precio_unitario_cobrado, subtotal, deuda_generada_proveedor
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-        `).run(venta_id, prod_id, prov_id, cant, costo_unit, precio_unit, sub_linea, deuda_prov);
+        `).run(
+          venta_id,
+          linea.producto_id,
+          linea.proveedor_id,
+          linea.cantidad,
+          linea.costo_unitario,
+          linea.precio_unitario,
+          sub_linea,
+          deuda_prov
+        );
 
-        const stockPrevio = Number(pRow.stock_actual);
-        const nuevoStock = Math.max(0, stockPrevio - cant);
-        db.prepare('UPDATE productos SET stock_actual = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(nuevoStock, prod_id);
+        const stockRow = db.prepare('SELECT stock_actual FROM productos WHERE id = ?').get(linea.producto_id) as
+          | { stock_actual: number }
+          | undefined;
+        const stockPrevio = Number(stockRow?.stock_actual ?? linea.stock_previo);
+        const nuevoStock = Math.max(0, roundMoney(stockPrevio - linea.cantidad));
+        db.prepare('UPDATE productos SET stock_actual = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+          nuevoStock,
+          linea.producto_id
+        );
 
-        const kHash = hashSha256(`SALIDA_VENTA|${folio_ticket}|${prod_id}|${cant}`);
+        const kHash = hashSha256(`SALIDA_VENTA|${folio_ticket}|${linea.producto_id}|${linea.cantidad}`);
         db.prepare(`
           INSERT INTO kardex_movimientos (
             producto_id, tipo_movimiento, referencia_folio, cantidad,
             stock_previo, stock_resultante, costo_unitario, costo_total, usuario_id, hash_sha256
           ) VALUES (?, 'SALIDA_VENTA', ?, ?, ?, ?, ?, ?, ?, ?);
-        `).run(prod_id, folio_ticket, cant, stockPrevio, nuevoStock, costo_unit, deuda_prov, usuario_id, kHash);
+        `).run(
+          linea.producto_id,
+          folio_ticket,
+          linea.cantidad,
+          stockPrevio,
+          nuevoStock,
+          linea.costo_unitario,
+          roundMoney(linea.cantidad * linea.costo_unitario),
+          usuario_id,
+          kHash
+        );
 
-        if (prov_id && deuda_prov > 0) {
-          db.prepare('UPDATE proveedores SET saldo_pendiente_efectivo = saldo_pendiente_efectivo + ? WHERE id = ?').run(deuda_prov, prov_id);
+        if (linea.proveedor_id !== null && deuda_prov > 0) {
+          db.prepare('UPDATE proveedores SET saldo_pendiente_efectivo = saldo_pendiente_efectivo + ? WHERE id = ?').run(
+            deuda_prov,
+            linea.proveedor_id
+          );
         }
 
         stockChanges.push({
-          producto_id: prod_id,
-          sku: pRow.sku,
-          descripcion: pRow.descripcion,
+          producto_id: linea.producto_id,
+          sku: linea.sku,
+          descripcion: linea.descripcion,
           stock_previo: stockPrevio,
           stock_actual: nuevoStock,
         });
       }
 
       if (metodo_pago === 'EFECTIVO') {
-        db.prepare('UPDATE turnos_caja SET total_ventas_efectivo_cup = total_ventas_efectivo_cup + ? WHERE id = ?').run(total_neto, turno_id);
+        db.prepare('UPDATE turnos_caja SET total_ventas_efectivo_cup = total_ventas_efectivo_cup + ? WHERE id = ?').run(
+          total_neto,
+          turno_id
+        );
       } else {
-        db.prepare('UPDATE turnos_caja SET total_ventas_transferencia_cup = total_ventas_transferencia_cup + ? WHERE id = ?').run(total_neto, turno_id);
+        db.prepare(
+          'UPDATE turnos_caja SET total_ventas_transferencia_cup = total_ventas_transferencia_cup + ? WHERE id = ?'
+        ).run(total_neto, turno_id);
       }
 
-      return stockChanges;
+      return { folio_ticket, subtotal, descuento, total_neto, pago_recibido, vuelto, stockChanges };
     });
 
     res.status(201).json({
       success: true,
-      folio_ticket,
-      total_neto,
-      vuelto,
-      updated_stocks: updatedStocks,
+      folio_ticket: result.folio_ticket,
+      subtotal: result.subtotal,
+      descuento: result.descuento,
+      total_neto: result.total_neto,
+      pago_recibido: result.pago_recibido,
+      vuelto: result.vuelto,
+      updated_stocks: result.stockChanges,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const status = msg.includes('Stock insuficiente') || msg.includes('Cantidad inválida') || msg.includes('no existe') ? 400 : 500;
-    res.status(status).json({ success: false, error: msg });
+    respondError(res, err);
   }
 });
 
