@@ -1,12 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { InventoryItem } from './InventoryTable.js';
 
-export interface ClientOption {
-  id: number;
-  codigo_cliente: string;
-  nombre_completo: string;
-}
-
 export interface CartLine {
   producto_id: number;
   sku: string;
@@ -63,7 +57,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
   onShiftDataLoaded,
 }) => {
   const [products, setProducts] = useState<InventoryItem[]>([]);
-  const [clients, setClients] = useState<ClientOption[]>([]);
   const [activeTurnoId, setActiveTurnoId] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -79,7 +72,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
 
   // Sale ticket state
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [discountPct, setDiscountPct] = useState<string>('0');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO');
   const [paymentLabel, setPaymentLabel] = useState<string>('Efectivo CUP');
@@ -93,9 +85,8 @@ export const SalesForm: React.FC<SalesFormProps> = ({
     setLoading(true);
     setLoadError(null);
     try {
-      const [prodRes, cliRes, turnoRes] = await Promise.all([
+      const [prodRes, turnoRes] = await Promise.all([
         fetch('/api/productos'),
-        fetch('/api/clientes'),
         fetch('/api/turnos/activo'),
       ]);
 
@@ -106,11 +97,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const prodData = (await prodRes.json()) as { productos?: InventoryItem[] };
       const loadedProducts = Array.isArray(prodData.productos) ? prodData.productos : [];
       setProducts(loadedProducts);
-
-      if (cliRes.ok) {
-        const cliData = (await cliRes.json()) as { clientes?: ClientOption[] };
-        setClients(Array.isArray(cliData.clientes) ? cliData.clientes : []);
-      }
 
       if (turnoRes.ok) {
         const turnoData = (await turnoRes.json()) as { turno?: { id: number } | null };
@@ -310,7 +296,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       return;
     }
 
-    if (paymentMethod === 'EFECTIVO' && cashReceived.trim() !== '' && totals.faltante > 0) {
+    if (cashReceived.trim() !== '' && totals.faltante > 0) {
       setFormError(
         `El monto recibido ($${formatMoney(totals.receivedVal)} CUP) es menor al total a cobrar ($${formatMoney(totals.totalNeto)} CUP).`
       );
@@ -332,7 +318,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
         body: JSON.stringify({
           turno_id: activeTurnoId,
           usuario_id: 1,
-          cliente_id: selectedClientId ? Number(selectedClientId) : null,
           metodo_pago: paymentMethod,
           subtotal: totals.subtotal,
           descuento: totals.descuento,
@@ -350,7 +335,10 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const data = (await response.json()) as {
         success?: boolean;
         folio_ticket?: string;
+        subtotal?: number;
+        descuento?: number;
         total_neto?: number;
+        pago_recibido?: number;
         vuelto?: number;
         updated_stocks?: SaleStockDelta[];
         error?: string;
@@ -363,7 +351,7 @@ export const SalesForm: React.FC<SalesFormProps> = ({
       const receipt: RecordedSaleReceipt = {
         folio_ticket: data.folio_ticket,
         total_neto: Number(data.total_neto ?? totals.totalNeto),
-        pago_recibido: pagoRecibido,
+        pago_recibido: Number(data.pago_recibido ?? pagoRecibido),
         vuelto: Number(data.vuelto ?? totals.vuelto),
         metodo_pago: paymentLabel,
         fecha: new Date().toLocaleString('es-CU'),
@@ -684,34 +672,6 @@ export const SalesForm: React.FC<SalesFormProps> = ({
                 <span>Agregar</span>
               </button>
             </div>
-          </div>
-
-          {/* Customer Selector */}
-          <div className="bg-[#F8FAFF] border border-[#E8EEF7] p-3 rounded-xl flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="material-symbols-outlined text-[#64748B] text-[20px]">
-                person
-              </span>
-              <label
-                className="font-label-md text-label-md text-[#182034] font-semibold truncate"
-                htmlFor="sales-client-select"
-              >
-                Cliente
-              </label>
-            </div>
-            <select
-              className="px-3 h-8 rounded-lg bg-white border border-[#E8EEF7] text-[#182034] font-label-sm text-label-sm font-semibold focus:outline-none max-w-[200px]"
-              id="sales-client-select"
-              onChange={(e) => setSelectedClientId(e.target.value)}
-              value={selectedClientId}
-            >
-              <option value="">Cliente General (Mostrador)</option>
-              {clients.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.nombre_completo}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Line Items List */}

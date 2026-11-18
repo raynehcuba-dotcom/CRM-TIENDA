@@ -8,7 +8,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "esbuild src/inventory-client.tsx --bundle --format=esm --minify --outfile=assets/inventory-app.js && esbuild src/dashboard-client.tsx --bundle --format=esm --minify --outfile=assets/dashboard-app.js && esbuild src/pos-client.tsx --bundle --format=esm --minify --outfile=assets/pos-app.js && esbuild src/suppliers-client.tsx --bundle --format=esm --minify --outfile=assets/suppliers-app.js && esbuild src/petty-cash-client.tsx --bundle --format=esm --minify --outfile=assets/petty-cash-app.js && esbuild src/low-stock-report-client.tsx --bundle --format=esm --minify --outfile=assets/low-stock-report-app.js && esbuild src/daily-summary-client.tsx --bundle --format=esm --minify --outfile=assets/daily-summary-app.js && esbuild src/stock-alert-monitor-client.tsx --bundle --format=esm --minify --outfile=assets/stock-alert-monitor-app.js && tsc",
+    "build": "esbuild src/inventory-client.tsx --bundle --format=esm --minify --outfile=assets/inventory-app.js && esbuild src/dashboard-client.tsx --bundle --format=esm --minify --outfile=assets/dashboard-app.js && esbuild src/pos-client.tsx --bundle --format=esm --minify --outfile=assets/pos-app.js && esbuild src/suppliers-client.tsx --bundle --format=esm --minify --outfile=assets/suppliers-app.js && esbuild src/petty-cash-client.tsx --bundle --format=esm --minify --outfile=assets/petty-cash-app.js && esbuild src/stock-alert-monitor-client.tsx --bundle --format=esm --minify --outfile=assets/stock-alert-monitor-app.js && tsc",
     "start": "node dist/server.js",
     "lint": "tsc --noEmit",
     "desktop:bundle": "npm run build && node scripts/build-desktop.mjs",

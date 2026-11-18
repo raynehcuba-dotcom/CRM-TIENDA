@@ -5,6 +5,7 @@ export interface PettyCashVoucher {
   folio_vale: string;
   turno_id: number | null;
   autorizado_por: number;
+  fondo_id: number | null;
   beneficiario_nombre: string;
   beneficiario_ci: string;
   rubro: string;
@@ -20,6 +21,7 @@ export interface PettyCashVoucher {
 export interface PettyCashReconciliation {
   id: number;
   folio_arqueo: string;
+  fondo_id: number | null;
   fondo_fijo_cup: number;
   total_vales_cup: number;
   saldo_esperado_cup: number;
@@ -41,6 +43,17 @@ export interface RubroBreakdown {
   porcentaje: number;
 }
 
+export interface PettyCashFund {
+  id: number;
+  nombre: string;
+  monto_asignado_cup: number;
+  tope_vale_cup: number;
+  activo: number;
+  total_desembolsado: number;
+  saldo_disponible: number;
+  vales_activos_count: number;
+}
+
 export interface PettyCashSnapshot {
   fondo_fijo: number;
   tope_vale: number;
@@ -55,6 +68,9 @@ export interface PettyCashSnapshot {
   vales: PettyCashVoucher[];
   arqueos: PettyCashReconciliation[];
   ultimo_arqueo: PettyCashReconciliation | null;
+  fondos: PettyCashFund[];
+  fondo_actual_id: number | null;
+  fondo_actual_nombre: string | null;
 }
 
 export interface PettyCashManagerProps {
@@ -116,6 +132,14 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
   const [snapshot, setSnapshot] = useState<PettyCashSnapshot | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeFondoId, setActiveFondoId] = useState<number | null>(null);
+  const [fundModalOpen, setFundModalOpen] = useState<boolean>(false);
+  const [fundModalMode, setFundModalMode] = useState<'create' | 'edit'>('create');
+  const [fundNombre, setFundNombre] = useState<string>('');
+  const [fundMonto, setFundMonto] = useState<string>('');
+  const [fundTope, setFundTope] = useState<string>('5000');
+  const [fundSaving, setFundSaving] = useState<boolean>(false);
+  const [fundError, setFundError] = useState<string | null>(null);
 
   // Filters
   const [selectedRubro, setSelectedRubro] = useState<string>('ALL');
@@ -159,18 +183,22 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/caja-chica');
+      const query = activeFondoId ? `?fondo_id=${activeFondoId}` : '';
+      const response = await fetch(`/api/caja-chica${query}`);
       if (!response.ok) {
         throw new Error(`Error HTTP ${response.status} al consultar SQLite`);
       }
       const data = (await response.json()) as PettyCashSnapshot;
       setSnapshot(data);
+      if (data.fondo_actual_id && data.fondo_actual_id !== activeFondoId) {
+        setActiveFondoId(data.fondo_actual_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar Caja Chica');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeFondoId]);
 
   useEffect(() => {
     void fetchSnapshot();
@@ -178,14 +206,14 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
 
   const handleExportCsv = useCallback(() => {
     const link = document.createElement('a');
-    link.href = '/api/caja-chica/export/csv';
+    link.href = `/api/caja-chica/export/csv${activeFondoId ? `?fondo_id=${activeFondoId}` : ''}`;
     link.download = `libro_caja_chica_${new Date().toISOString().slice(0, 10)}.csv`;
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     onStatusMessage?.('Libro de Caja Chica exportado en formato CSV.', 'success');
-  }, [onStatusMessage]);
+  }, [onStatusMessage, activeFondoId]);
 
   useEffect(() => {
     const onFocusExpense = () => {
@@ -305,6 +333,10 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
       setExpenseError('Ingresa el nombre del beneficiario.');
       return;
     }
+    if (!ciInput.trim()) {
+      setExpenseError('Ingresa el carnet de identidad del beneficiario.');
+      return;
+    }
     if (monto > saldoDisponible + 0.001) {
       setExpenseError(`El monto supera el saldo disponible en gaveta ($${formatCurrency(saldoDisponible)} CUP).`);
       return;
@@ -322,6 +354,7 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          fondo_id: snapshot?.fondo_actual_id ?? null,
           monto_desembolsado_cup: monto,
           rubro: rubroInput,
           concepto_justificacion: conceptoInput.trim(),
@@ -430,6 +463,7 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          fondo_id: snapshot?.fondo_actual_id ?? null,
           efectivo_contado_cup: effectiveCountedCash,
           desglose_billetes: useBillCounter ? billCounts : null,
           responsable_nombre: reconcileResponsible.trim() || 'Caja Central',
@@ -461,13 +495,6 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
         `Arqueo ${ar.folio_arqueo} guardado en SQLite (${diffMsg}).`,
         ar.estado === 'FALTANTE' ? 'danger' : 'success'
       );
-      window.dispatchEvent(
-        new CustomEvent('daily-summary:open', {
-          detail: {
-            reason: `Arqueo de caja chica (${ar.folio_arqueo}) completado: resumen operativo del día calculado automáticamente.`,
-          },
-        })
-      );
     } catch (err) {
       setReconcileError(err instanceof Error ? err.message : 'Error al registrar arqueo');
     } finally {
@@ -479,7 +506,11 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
     if (replenishing || totalDesembolsado <= 0) return;
     setReplenishing(true);
     try {
-      const response = await fetch('/api/caja-chica/reponer', { method: 'POST' });
+      const response = await fetch('/api/caja-chica/reponer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fondo_id: snapshot?.fondo_actual_id ?? null }),
+      });
       const data = (await response.json()) as {
         success?: boolean;
         reintegrados?: number;
@@ -503,11 +534,160 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
     }
   };
 
+  const openCreateFund = () => {
+    setFundModalMode('create');
+    setFundNombre('');
+    setFundMonto('25000');
+    setFundTope(String(topeVale || 5000));
+    setFundError(null);
+    setFundModalOpen(true);
+  };
+
+  const openEditFund = () => {
+    const current = snapshot?.fondos?.find((f) => f.id === snapshot.fondo_actual_id);
+    if (!current) return;
+    setFundModalMode('edit');
+    setFundNombre(current.nombre);
+    setFundMonto(String(current.monto_asignado_cup));
+    setFundTope(String(current.tope_vale_cup));
+    setFundError(null);
+    setFundModalOpen(true);
+  };
+
+  const handleSaveFund = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (fundSaving) return;
+
+    const monto = Number(fundMonto);
+    const tope = Number(fundTope);
+    if (!fundNombre.trim()) {
+      setFundError('Escribe el nombre del fondo.');
+      return;
+    }
+    if (!Number.isFinite(monto) || monto < 0) {
+      setFundError('El monto asignado debe ser un número mayor o igual a 0.');
+      return;
+    }
+    if (!Number.isFinite(tope) || tope < 0) {
+      setFundError('El tope por vale debe ser un número mayor o igual a 0.');
+      return;
+    }
+
+    setFundSaving(true);
+    setFundError(null);
+    try {
+      const url =
+        fundModalMode === 'create'
+          ? '/api/caja-chica/fondos'
+          : `/api/caja-chica/fondos/${snapshot?.fondo_actual_id}`;
+      const response = await fetch(url, {
+        method: fundModalMode === 'create' ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: fundNombre.trim(),
+          monto_asignado_cup: monto,
+          tope_vale_cup: tope,
+        }),
+      });
+      const data = (await response.json()) as { success?: boolean; fondo_id?: number; error?: string };
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'No se pudo guardar el fondo');
+      }
+      const nextId = data.fondo_id ?? snapshot?.fondo_actual_id ?? null;
+      setFundModalOpen(false);
+      if (nextId && nextId !== activeFondoId) {
+        setActiveFondoId(nextId);
+      } else {
+        await fetchSnapshot();
+      }
+      onStatusMessage?.(
+        fundModalMode === 'create' ? 'Fondo de caja chica creado.' : 'Fondo actualizado.',
+        'success'
+      );
+    } catch (err) {
+      setFundError(err instanceof Error ? err.message : 'Error al guardar el fondo');
+    } finally {
+      setFundSaving(false);
+    }
+  };
+
   const topRubro = desgloseRubros[0] ?? null;
   const lowBalanceAlert = porcentajeDisponible < 35;
 
   return (
     <div className="flex flex-col gap-6">
+      {/* FUND SELECTOR */}
+      <section className="rounded-2xl bg-white border border-[#E8EEF7] shadow-[0_2px_12px_rgba(15,23,42,0.03)] p-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="material-symbols-outlined text-[#0E4BFF] text-[20px]">savings</span>
+            <div className="min-w-0">
+              <h2 className="font-headline-sm text-headline-sm text-[#182034] font-bold truncate">
+                Fondos de caja chica
+              </h2>
+              <p className="font-label-sm text-[11px] text-[#64748B] truncate">
+                Cada fondo tiene su propio monto, tope de vale, vales y arqueos.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="h-9 px-3 rounded-xl bg-white border border-[#E8EEF7] hover:bg-[#F8FAFF] text-[#182034] font-label-sm text-label-sm font-semibold inline-flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              disabled={!snapshot?.fondo_actual_id}
+              onClick={openEditFund}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[16px]">tune</span>
+              <span>Editar fondo</span>
+            </button>
+            <button
+              className="h-9 px-3.5 rounded-xl bg-[#0E4BFF] hover:bg-[#0B3EDB] text-white font-label-sm text-label-sm font-semibold inline-flex items-center gap-1.5 shadow-[0_4px_12px_rgba(14,75,255,0.22)] transition-colors"
+              onClick={openCreateFund}
+              type="button"
+            >
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              <span>Nuevo fondo</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-stretch gap-2 overflow-x-auto pb-1">
+          {(snapshot?.fondos ?? []).map((fondo) => {
+            const active = fondo.id === snapshot?.fondo_actual_id;
+            return (
+              <button
+                className={`min-w-[180px] shrink-0 text-left p-3 rounded-xl border transition-colors ${
+                  active
+                    ? 'bg-[#EEF3FF] border-[#0E4BFF] text-[#0E4BFF]'
+                    : 'bg-[#F8FAFF] border-[#E8EEF7] text-[#182034] hover:border-[#0E4BFF]/40'
+                }`}
+                key={fondo.id}
+                onClick={() => setActiveFondoId(fondo.id)}
+                type="button"
+              >
+                <span className="block font-label-md text-label-md font-bold truncate">
+                  {fondo.nombre}
+                </span>
+                <span className="block font-code-mono text-[11px] text-[#64748B] mt-0.5 tabular-nums">
+                  Asignado: ${formatCurrency(fondo.monto_asignado_cup)}
+                </span>
+                <span
+                  className={`block font-code-mono text-[12px] font-bold mt-1 tabular-nums ${
+                    active ? 'text-[#0E4BFF]' : 'text-emerald-700'
+                  }`}
+                >
+                  Saldo: ${formatCurrency(fondo.saldo_disponible)}
+                </span>
+              </button>
+            );
+          })}
+          {(snapshot?.fondos ?? []).length === 0 && (
+            <span className="font-label-sm text-label-sm text-[#64748B]">
+              No hay fondos activos. Crea el primero con “Nuevo fondo”.
+            </span>
+          )}
+        </div>
+      </section>
       {/* KPI SUMMARY METRICS ROW */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="p-5 rounded-2xl bg-white border border-[#E8EEF7] flex flex-col justify-between shadow-[0_2px_12px_rgba(15,23,42,0.03)]">
@@ -1673,6 +1853,96 @@ export const PettyCashManager: React.FC<PettyCashManagerProps> = ({ onStatusMess
           </section>
         </div>
       </div>
+
+      {fundModalOpen && (
+        <div className="fixed inset-0 z-50 bg-[#0F172A]/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            className="w-full max-w-md rounded-2xl bg-white border border-[#E8EEF7] shadow-2xl overflow-hidden"
+            onSubmit={handleSaveFund}
+          >
+            <div className="px-5 py-4 bg-[#F8FAFF] border-b border-[#E8EEF7] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#0E4BFF] text-[20px]">savings</span>
+                <h2 className="font-headline-sm text-headline-sm text-[#182034] font-bold">
+                  {fundModalMode === 'create' ? 'Nuevo fondo' : 'Editar fondo'}
+                </h2>
+              </div>
+              <button
+                className="w-8 h-8 rounded-lg text-[#64748B] hover:bg-[#EEF3FF] hover:text-[#0E4BFF] inline-flex items-center justify-center"
+                onClick={() => setFundModalOpen(false)}
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="p-5 flex flex-col gap-4">
+              {fundError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-label-sm text-label-sm" role="alert">
+                  {fundError}
+                </div>
+              )}
+
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label-sm text-label-sm font-semibold text-[#182034]">Nombre del fondo</span>
+                <input
+                  className="h-10 px-3 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] font-body-md text-body-md text-[#182034] focus:outline-none focus:border-[#0E4BFF]"
+                  onChange={(e) => setFundNombre(e.target.value)}
+                  placeholder="Ej. Fondo Limpieza"
+                  type="text"
+                  value={fundNombre}
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1.5">
+                  <span className="font-label-sm text-label-sm font-semibold text-[#182034]">Monto asignado (CUP)</span>
+                  <input
+                    className="h-10 px-3 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] font-code-mono text-body-md text-[#182034] focus:outline-none focus:border-[#0E4BFF]"
+                    min="0"
+                    onChange={(e) => setFundMonto(e.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={fundMonto}
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className="font-label-sm text-label-sm font-semibold text-[#182034]">Tope por vale (CUP)</span>
+                  <input
+                    className="h-10 px-3 rounded-xl border border-[#E8EEF7] bg-[#F8FAFF] font-code-mono text-body-md text-[#182034] focus:outline-none focus:border-[#0E4BFF]"
+                    min="0"
+                    onChange={(e) => setFundTope(e.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={fundTope}
+                  />
+                </label>
+              </div>
+
+              <p className="font-label-sm text-[11px] text-[#64748B]">
+                El monto asignado no puede quedar por debajo de los vales activos del fondo.
+              </p>
+            </div>
+
+            <div className="px-5 py-3.5 bg-[#F8FAFF] border-t border-[#E8EEF7] flex items-center justify-end gap-2">
+              <button
+                className="h-9 px-3.5 rounded-xl bg-white border border-[#E8EEF7] text-[#182034] font-label-sm text-label-sm font-semibold hover:bg-[#F1F5FD]"
+                onClick={() => setFundModalOpen(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="h-9 px-4 rounded-xl bg-[#0E4BFF] hover:bg-[#0B3EDB] text-white font-label-sm text-label-sm font-semibold disabled:opacity-60"
+                disabled={fundSaving}
+                type="submit"
+              >
+                {fundSaving ? 'Guardando...' : 'Guardar fondo'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

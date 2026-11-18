@@ -714,15 +714,6 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   : `Solo en alerta (${counts.lowStock})`}
               </button>
             )}
-
-            <a
-              className="px-3.5 h-9 rounded-xl bg-white text-[#182034] border border-[#E8EEF7] hover:bg-[#F8FAFF] font-label-sm text-label-sm font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
-              href="/reporte-stock-bajo"
-              id="btn-inventory-printable-low-stock"
-            >
-              <span className="material-symbols-outlined text-[17px]">print</span>
-              <span>Reporte Imprimible</span>
-            </a>
           </div>
         </section>
       )}

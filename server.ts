@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, hashSha256, runInTransaction, createSqliteBackup, closeDatabase } from './src/db.js';
+import { db, hashSha256, runInTransaction, createSqliteBackup, listSqliteBackups, restoreSqliteBackup, closeDatabase } from './src/db.js';
 import { buildInventoryCsv, getInventoryCsvFilename, type InventoryCsvRow } from './src/utils/csvExport.js';
 
 const currentDir =
@@ -45,14 +45,6 @@ async function ensureDevClientBundles(): Promise<void> {
     {
       src: path.join(ROOT_DIR, 'src', 'petty-cash-client.tsx'),
       out: path.join(ROOT_DIR, 'assets', 'petty-cash-app.js'),
-    },
-    {
-      src: path.join(ROOT_DIR, 'src', 'low-stock-report-client.tsx'),
-      out: path.join(ROOT_DIR, 'assets', 'low-stock-report-app.js'),
-    },
-    {
-      src: path.join(ROOT_DIR, 'src', 'daily-summary-client.tsx'),
-      out: path.join(ROOT_DIR, 'assets', 'daily-summary-app.js'),
     },
     {
       src: path.join(ROOT_DIR, 'src', 'stock-alert-monitor-client.tsx'),
@@ -128,6 +120,7 @@ interface TurnoCajaRow extends Record<string, unknown> {
   total_abonos_credito_cup: number;
   total_sangrias_cup: number;
   total_egresos_caja_chica_cup: number;
+  total_reposiciones_cup?: number;
 }
 
 function getTurno(turnoId: number): TurnoCajaRow | undefined {
@@ -157,8 +150,6 @@ function requireActiveUser(usuarioId: number, label = 'usuario'): void {
 }
 
 const FOLIO_TABLES = {
-  abonos: 'credito_abonos',
-  sangrias: 'sangrias_caja',
   comprobantes: 'comprobantes_pago_proveedor',
 } as const;
 
@@ -288,11 +279,11 @@ app.post('/api/productos', (req: Request, res: Response) => {
     const costo = Number(req.body?.costo_ultimo ?? req.body?.costo ?? 0);
     const precio_venta_cup = Number(req.body?.precio_venta_cup ?? 0);
 
-    if (!descripcion || Number.isNaN(precio_venta_cup) || precio_venta_cup <= 0) {
+    if (!descripcion || !Number.isFinite(precio_venta_cup) || precio_venta_cup <= 0) {
       res.status(400).json({ success: false, error: 'Descripción y precio de venta mayor a 0 son obligatorios' });
       return;
     }
-    if (Number.isNaN(stock_actual) || stock_actual < 0 || Number.isNaN(stock_minimo) || stock_minimo < 0 || Number.isNaN(costo) || costo < 0) {
+    if (!Number.isFinite(stock_actual) || stock_actual < 0 || !Number.isFinite(stock_minimo) || stock_minimo < 0 || !Number.isFinite(costo) || costo < 0) {
       res.status(400).json({ success: false, error: 'Stock y costos deben ser valores numéricos no negativos' });
       return;
     }
@@ -370,11 +361,11 @@ app.put('/api/productos/:id', (req: Request, res: Response) => {
     const costo_ultimo = Number(req.body?.costo_ultimo ?? current.costo_ultimo);
     const precio_venta_cup = Number(req.body?.precio_venta_cup ?? current.precio_venta_cup);
 
-    if (!sku || !descripcion || Number.isNaN(precio_venta_cup) || precio_venta_cup <= 0) {
+    if (!sku || !descripcion || !Number.isFinite(precio_venta_cup) || precio_venta_cup <= 0) {
       res.status(400).json({ success: false, error: 'SKU, nombre y precio de venta mayor a 0 son obligatorios' });
       return;
     }
-    if (Number.isNaN(stock_actual) || stock_actual < 0 || Number.isNaN(stock_minimo) || stock_minimo < 0 || Number.isNaN(costo_ultimo) || costo_ultimo < 0) {
+    if (!Number.isFinite(stock_actual) || stock_actual < 0 || !Number.isFinite(stock_minimo) || stock_minimo < 0 || !Number.isFinite(costo_ultimo) || costo_ultimo < 0) {
       res.status(400).json({ success: false, error: 'Stock y costos deben ser valores numéricos no negativos' });
       return;
     }
@@ -514,9 +505,20 @@ app.post('/api/productos/entrada', (req: Request, res: Response) => {
     const costoRaw = req.body?.costo_unitario;
     const proveedorNombre = String(req.body?.proveedor ?? '').trim();
 
-    if (cantidad <= 0) {
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
       res.status(400).json({ success: false, error: 'La cantidad debe ser mayor a 0' });
       return;
+    }
+    if (productoIdParam !== null && (!Number.isInteger(productoIdParam) || productoIdParam <= 0)) {
+      res.status(400).json({ success: false, error: 'Identificador de producto inválido' });
+      return;
+    }
+    if (costoRaw !== undefined && costoRaw !== null && costoRaw !== '') {
+      const costoCheck = Number(costoRaw);
+      if (!Number.isFinite(costoCheck) || costoCheck < 0) {
+        res.status(400).json({ success: false, error: 'El costo unitario debe ser un número mayor o igual a 0' });
+        return;
+      }
     }
 
     const result = runInTransaction(() => {
@@ -535,7 +537,7 @@ app.post('/api/productos/entrada', (req: Request, res: Response) => {
       const prodId = Number(prod.id);
       const stockPrevio = Number(prod.stock_actual);
       const stockNuevo = stockPrevio + cantidad;
-      const costoUnit = costoRaw !== undefined && costoRaw !== '' && !Number.isNaN(Number(costoRaw))
+      const costoUnit = costoRaw !== undefined && costoRaw !== '' && Number.isFinite(Number(costoRaw))
         ? Number(costoRaw)
         : Number(prod.costo_ultimo);
 
@@ -588,8 +590,12 @@ app.post('/api/productos/ajuste', (req: Request, res: Response) => {
     const tipoAjuste = String(req.body?.tipo_ajuste ?? 'conteo');
     const motivo = String(req.body?.motivo ?? 'Ajuste manual de inventario').trim();
 
-    if (nuevaCantidad < 0 || Number.isNaN(nuevaCantidad)) {
+    if (!Number.isFinite(nuevaCantidad) || nuevaCantidad < 0) {
       res.status(400).json({ success: false, error: 'Cantidad inválida' });
+      return;
+    }
+    if (productoIdParam !== null && (!Number.isInteger(productoIdParam) || productoIdParam <= 0)) {
+      res.status(400).json({ success: false, error: 'Identificador de producto inválido' });
       return;
     }
 
@@ -632,17 +638,6 @@ app.post('/api/productos/ajuste', (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
-});
-
-app.get('/api/kardex', (_req: Request, res: Response) => {
-  const movimientos = db.prepare(`
-    SELECT k.*, p.sku, p.descripcion AS producto_nombre
-    FROM kardex_movimientos k
-    JOIN productos p ON k.producto_id = p.id
-    ORDER BY k.id DESC
-    LIMIT 100
-  `).all();
-  res.status(200).json({ movimientos });
 });
 
 // ---------------------------------------------------------------------------
@@ -827,26 +822,72 @@ app.put('/api/proveedores/:id/productos', (req: Request, res: Response) => {
 app.post('/api/proveedores/pago', (req: Request, res: Response) => {
   try {
     const proveedor_id = Number(req.body?.proveedor_id);
-    const monto = Number(req.body?.monto_liquidado_cup ?? 0);
-    const canal = String(req.body?.canal_pago ?? 'EFECTIVO_GAVETA');
+    const monto = parseMoney(req.body?.monto_liquidado_cup ?? 0, 'El monto a liquidar');
+    const canal = String(req.body?.canal_pago ?? 'EFECTIVO_GAVETA').trim().toUpperCase();
     const receptor = String(req.body?.receptor_nombre ?? 'Representante Proveedor').trim() || 'Representante Proveedor';
     const receptorCi = String(req.body?.receptor_ci ?? '00000000000').trim() || '00000000000';
     const glosa = String(req.body?.documento_fuente_ref ?? 'Liquidación directa de pasivo').trim();
     const refBancaria = req.body?.referencia_bancaria ? String(req.body.referencia_bancaria) : null;
     const folioSolicitado = String(req.body?.folio_comprobante ?? '').trim();
 
-    if (!proveedor_id || monto <= 0) {
-      res.status(400).json({ success: false, error: 'Proveedor y monto válidos son obligatorios' });
-      return;
+    if (!Number.isInteger(proveedor_id) || proveedor_id <= 0) {
+      throw new ApiError(400, 'Proveedor inválido');
+    }
+    if (monto <= 0) {
+      throw new ApiError(400, 'El monto a liquidar debe ser mayor a 0 CUP.');
+    }
+    if (!SUPPLIER_PAYMENT_CHANNELS.has(canal)) {
+      throw new ApiError(400, `Canal de pago no soportado: "${canal}".`);
     }
 
     const result = runInTransaction(() => {
-      const prov = db.prepare('SELECT * FROM proveedores WHERE id = ?').get(proveedor_id) as Record<string, unknown> | undefined;
+      const prov = db.prepare('SELECT * FROM proveedores WHERE id = ?').get(proveedor_id) as
+        | Record<string, unknown>
+        | undefined;
       if (!prov) {
-        throw new Error('Proveedor no encontrado');
+        throw new ApiError(404, 'Proveedor no encontrado');
       }
 
-      const folio = folioSolicitado || `REC-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+      const saldoEfectivo = roundMoney(Number(prov.saldo_pendiente_efectivo ?? 0));
+      const saldoTransferencia = roundMoney(Number(prov.saldo_pendiente_transferencia ?? 0));
+      const saldoTotal = roundMoney(saldoEfectivo + saldoTransferencia);
+
+      if (monto > saldoTotal + 0.009) {
+        throw new ApiError(
+          400,
+          `El pago ($${monto.toFixed(2)} CUP) supera el saldo pendiente del proveedor ($${saldoTotal.toFixed(2)} CUP).`
+        );
+      }
+
+      // El pago se imputa primero al canal elegido y el excedente al otro saldo.
+      let restante = monto;
+      let nuevoEfectivo = saldoEfectivo;
+      let nuevoTransferencia = saldoTransferencia;
+      const orden: Array<'efectivo' | 'transferencia'> =
+        canal === 'TRANSFERENCIA_BANCARIA' ? ['transferencia', 'efectivo'] : ['efectivo', 'transferencia'];
+      for (const destino of orden) {
+        if (restante <= 0) break;
+        const saldoDestino = destino === 'efectivo' ? nuevoEfectivo : nuevoTransferencia;
+        const aplicado = Math.min(saldoDestino, restante);
+        if (destino === 'efectivo') nuevoEfectivo = roundMoney(saldoDestino - aplicado);
+        else nuevoTransferencia = roundMoney(saldoDestino - aplicado);
+        restante = roundMoney(restante - aplicado);
+      }
+
+      let folio: string;
+      if (folioSolicitado) {
+        const dup = db.prepare('SELECT id FROM comprobantes_pago_proveedor WHERE folio_comprobante = ?').get(folioSolicitado);
+        if (dup) {
+          throw new ApiError(
+            409,
+            `Ya existe un comprobante con el folio "${folioSolicitado}". Déjalo vacío para generar uno nuevo.`
+          );
+        }
+        folio = folioSolicitado;
+      } else {
+        folio = nextFolio('REC', FOLIO_TABLES.comprobantes, String(new Date().getFullYear()));
+      }
+
       const h = hashSha256(`${folio}|${proveedor_id}|${monto}|${canal}|${receptor}`);
 
       db.prepare(`
@@ -856,16 +897,26 @@ app.post('/api/proveedores/pago', (req: Request, res: Response) => {
         ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
       `).run(folio, proveedor_id, monto, canal, refBancaria, receptor, receptorCi, glosa, h);
 
-      const nuevoSaldoEf = Math.max(0, Number(prov.saldo_pendiente_efectivo) - monto);
-      db.prepare('UPDATE proveedores SET saldo_pendiente_efectivo = ? WHERE id = ?').run(nuevoSaldoEf, proveedor_id);
+      db.prepare(`
+        UPDATE proveedores
+        SET saldo_pendiente_efectivo = ?, saldo_pendiente_transferencia = ?
+        WHERE id = ?
+      `).run(nuevoEfectivo, nuevoTransferencia, proveedor_id);
 
       const updatedProv = db.prepare('SELECT * FROM proveedores WHERE id = ?').get(proveedor_id);
-      return { folio_comprobante: folio, hash_sha256: h, proveedor: updatedProv };
+      return {
+        folio_comprobante: folio,
+        hash_sha256: h,
+        monto_liquidado_cup: monto,
+        saldo_pendiente_efectivo: nuevoEfectivo,
+        saldo_pendiente_transferencia: nuevoTransferencia,
+        proveedor: updatedProv,
+      };
     });
 
     res.status(201).json({ success: true, ...result });
   } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+    respondError(res, err);
   }
 });
 
@@ -1156,15 +1207,18 @@ app.get('/api/turnos/activo', (_req: Request, res: Response) => {
     WHERE t.estado = 'ABIERTA'
     ORDER BY t.id DESC
     LIMIT 1
-  `).get();
+  `).get() as { id: number } | undefined;
 
-  const stats = db.prepare(`
-    SELECT
-      COUNT(*) AS tickets_hoy,
-      COALESCE(SUM(total_neto_cup), 0.0) AS total_hoy
-    FROM ventas
-    WHERE estado = 'COMPLETADA'
-  `).get();
+  // Estadísticas del turno abierto (no del histórico completo).
+  const stats = turno
+    ? (db.prepare(`
+        SELECT
+          COUNT(*) AS tickets_hoy,
+          COALESCE(SUM(total_neto_cup), 0.0) AS total_hoy
+        FROM ventas
+        WHERE estado = 'COMPLETADA' AND turno_id = ?
+      `).get(turno.id) as { tickets_hoy: number; total_hoy: number })
+    : { tickets_hoy: 0, total_hoy: 0 };
 
   if (turno) {
     res.status(200).json({ turno, stats });
@@ -1173,53 +1227,149 @@ app.get('/api/turnos/activo', (_req: Request, res: Response) => {
   }
 });
 
-app.post('/api/turnos/cierre', (req: Request, res: Response) => {
+// ---------------------------------------------------------------------------
+// API ENDPOINTS: EFECTIVO EN GAVETA COMO FONDO (reposición, retiro, ajuste)
+// ---------------------------------------------------------------------------
+
+function getOpenTurno(): TurnoCajaRow | undefined {
+  return db
+    .prepare("SELECT * FROM turnos_caja WHERE estado = 'ABIERTA' ORDER BY id DESC LIMIT 1")
+    .get() as TurnoCajaRow | undefined;
+}
+
+function gavetaResumen(turno: TurnoCajaRow) {
+  const fondoInicial = roundMoney(Number(turno.fondo_inicial_cup ?? 0));
+  const reposiciones = roundMoney(Number(turno.total_reposiciones_cup ?? 0));
+  const ventasEfectivo = roundMoney(Number(turno.total_ventas_efectivo_cup ?? 0));
+  const sangrias = roundMoney(Number(turno.total_sangrias_cup ?? 0));
+  const egresosCajaChica = roundMoney(Number(turno.total_egresos_caja_chica_cup ?? 0));
+  const efectivoActual = roundMoney(
+    fondoInicial + reposiciones + ventasEfectivo - sangrias - egresosCajaChica
+  );
+
+  return {
+    fondo_inicial_cup: fondoInicial,
+    total_reposiciones_cup: reposiciones,
+    total_ventas_efectivo_cup: ventasEfectivo,
+    total_sangrias_cup: sangrias,
+    total_egresos_caja_chica_cup: egresosCajaChica,
+    efectivo_actual_cup: efectivoActual,
+  };
+}
+
+function gavetaPayload(turno: TurnoCajaRow) {
+  const movimientos = db
+    .prepare('SELECT * FROM caja_gaveta_movimientos WHERE turno_id = ? ORDER BY id DESC LIMIT 50')
+    .all(turno.id);
+  return { turno, resumen: gavetaResumen(turno), movimientos };
+}
+
+app.get('/api/gaveta', (_req: Request, res: Response) => {
   try {
-    const turno_id = Number(req.body?.turno_id);
-    const efectivo_declarado = Number(req.body?.efectivo_declarado ?? 0.0);
-    const justificacion = String(req.body?.justificacion_descuadre ?? '');
+    const turno = getOpenTurno();
+    if (!turno) {
+      throw new ApiError(409, 'No hay una gaveta abierta. Abre un turno para gestionar el efectivo.');
+    }
+    res.status(200).json({ success: true, ...gavetaPayload(turno) });
+  } catch (err) {
+    respondError(res, err);
+  }
+});
+
+app.post('/api/gaveta/movimientos', (req: Request, res: Response) => {
+  try {
+    const tipoRaw = String(req.body?.tipo ?? '').trim().toUpperCase();
+    const tipo = tipoRaw === 'REPOSICION' || tipoRaw === 'RETIRO' || tipoRaw === 'AJUSTE' ? tipoRaw : null;
+    if (!tipo) {
+      throw new ApiError(400, 'Tipo de movimiento inválido. Usa REPOSICION, RETIRO o AJUSTE.');
+    }
+
+    const monto = parseMoney(req.body?.monto_cup, 'El monto');
+    const concepto = String(req.body?.concepto ?? '').trim();
+
+    if (tipo !== 'AJUSTE' && monto <= 0) {
+      throw new ApiError(400, 'El monto debe ser mayor a 0 CUP.');
+    }
+    if (tipo === 'AJUSTE' && monto < 0) {
+      throw new ApiError(400, 'El fondo inicial no puede ser negativo.');
+    }
+    if (!concepto) {
+      throw new ApiError(400, 'Describe el motivo del movimiento.');
+    }
 
     const result = runInTransaction(() => {
-      const turno = db.prepare('SELECT * FROM turnos_caja WHERE id = ?').get(turno_id) as Record<string, number> | undefined;
+      const turno = getOpenTurno();
       if (!turno) {
-        throw new Error('Turno no encontrado');
+        throw new ApiError(409, 'No hay una gaveta abierta. Abre un turno para gestionar el efectivo.');
       }
 
-      const teorico =
-        turno.fondo_inicial_cup +
-        turno.total_ventas_efectivo_cup +
-        turno.total_abonos_credito_cup -
-        turno.total_sangrias_cup -
-        turno.total_egresos_caja_chica_cup;
+      const resumen = gavetaResumen(turno);
+      let efecto = 0;
+      let fondoInicial = Number(turno.fondo_inicial_cup ?? 0);
+      let reposiciones = Number(turno.total_reposiciones_cup ?? 0);
+      let sangrias = Number(turno.total_sangrias_cup ?? 0);
 
-      const diferencia = efectivo_declarado - teorico;
-      const estado = Math.abs(diferencia) < 0.01 ? 'CERRADA_CONFORME' : 'CERRADA_DESCUADRE';
-      const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const folio_z = `Z-${ymd}-${String(turno_id).padStart(4, '0')}`;
-      const h_sha = hashSha256(`${folio_z}|${efectivo_declarado}|${teorico}|${diferencia}`);
+      if (tipo === 'REPOSICION') {
+        reposiciones = roundMoney(reposiciones + monto);
+        efecto = monto;
+      } else if (tipo === 'RETIRO') {
+        if (monto > resumen.efectivo_actual_cup + 0.001) {
+          throw new ApiError(
+            400,
+            `No puedes retirar más de lo que hay en gaveta ($${resumen.efectivo_actual_cup.toFixed(2)} CUP).`
+          );
+        }
+        sangrias = roundMoney(sangrias + monto);
+        efecto = -monto;
+      } else {
+        const nuevoEfectivo = roundMoney(
+          monto + resumen.total_reposiciones_cup + resumen.total_ventas_efectivo_cup -
+            resumen.total_sangrias_cup - resumen.total_egresos_caja_chica_cup
+        );
+        if (nuevoEfectivo < 0) {
+          const fondoMinimo = roundMoney(
+            Math.max(
+              0,
+              resumen.total_sangrias_cup +
+                resumen.total_egresos_caja_chica_cup -
+                resumen.total_reposiciones_cup -
+                resumen.total_ventas_efectivo_cup
+            )
+          );
+          throw new ApiError(
+            400,
+            `Ese fondo inicial dejaría la gaveta en negativo ($${nuevoEfectivo.toFixed(2)} CUP). ` +
+              `El mínimo permitido es $${fondoMinimo.toFixed(2)} CUP.`
+          );
+        }
+        efecto = roundMoney(monto - fondoInicial);
+        fondoInicial = monto;
+      }
 
       db.prepare(`
         UPDATE turnos_caja
-        SET folio_cierre = ?, fecha_cierre = CURRENT_TIMESTAMP, estado = ?,
-            efectivo_declarado_cup = ?, diferencia_cup = ?, justificacion_descuadre = ?,
-            hash_inmutable_sha256 = ?
+        SET fondo_inicial_cup = ?,
+            total_reposiciones_cup = ?,
+            total_sangrias_cup = ?
         WHERE id = ?
-      `).run(folio_z, estado, efectivo_declarado, diferencia, justificacion, h_sha, turno_id);
+      `).run(roundMoney(fondoInicial), roundMoney(reposiciones), roundMoney(sangrias), turno.id);
 
-      return {
-        folio_cierre: folio_z,
-        estado,
-        teorico,
-        declarado: efectivo_declarado,
-        diferencia,
-        hash_sha256: h_sha,
-      };
+      const updated = getTurno(Number(turno.id))!;
+      const saldoResultante = gavetaResumen(updated).efectivo_actual_cup;
+      const h = hashSha256(`${turno.id}|${tipo}|${monto.toFixed(2)}|${saldoResultante.toFixed(2)}|${concepto}`);
+
+      db.prepare(`
+        INSERT INTO caja_gaveta_movimientos (
+          turno_id, tipo, monto_cup, efecto_cup, saldo_resultante_cup, concepto, usuario_id, hash_sha256
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+      `).run(turno.id, tipo, monto, efecto, saldoResultante, concepto, h);
+
+      return gavetaPayload(updated);
     });
 
-    const dailySummary = computeDailySummary(formatLocalYmd(new Date()));
-    res.status(200).json({ success: true, ...result, daily_summary: dailySummary });
+    res.status(201).json({ success: true, ...result });
   } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+    respondError(res, err);
   }
 });
 
@@ -1407,352 +1557,6 @@ app.get('/api/dashboard/weekly-sales', (_req: Request, res: Response) => {
   });
 });
 
-interface DailyPaymentBreakdown {
-  metodo: string;
-  tickets: number;
-  total_cup: number;
-}
-
-interface DailyExpenseBreakdown {
-  rubro: string;
-  vales: number;
-  total_cup: number;
-}
-
-interface DailySummaryPayload {
-  fecha_operativa: string;
-  total_ventas_cup: number;
-  costo_mercancia_cup: number;
-  gastos_operativos_cup: number;
-  total_gastos_cup: number;
-  ganancia_bruta_cup: number;
-  ganancia_neta_cup: number;
-  margen_neto_pct: number;
-  tickets_count: number;
-  vales_count: number;
-  descuentos_cup: number;
-  desglose_pagos: DailyPaymentBreakdown[];
-  desglose_gastos: DailyExpenseBreakdown[];
-  comparativa_ayer: {
-    fecha: string;
-    total_ventas_cup: number;
-    total_gastos_cup: number;
-    ganancia_neta_cup: number;
-  };
-  cerrado: boolean;
-  cerrado_en: string | null;
-  observaciones: string | null;
-}
-
-function getPreviousYmd(ymd: string): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const dt = new Date(y, (m || 1) - 1, (d || 1) - 1);
-  return formatLocalYmd(dt);
-}
-
-function computeDailySummary(targetDate: string): DailySummaryPayload {
-  const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(targetDate) ? targetDate : formatLocalYmd(new Date());
-  const prevDate = getPreviousYmd(safeDate);
-
-  const ventasRows = db.prepare(`
-    SELECT
-      v.id,
-      v.created_at,
-      v.metodo_pago,
-      v.total_neto_cup,
-      v.descuento_cup,
-      COALESCE(
-        (SELECT SUM(vd.cantidad * vd.costo_unitario_historico) FROM venta_detalles vd WHERE vd.venta_id = v.id),
-        0.0
-      ) AS costo_total
-    FROM ventas v
-    WHERE v.estado = 'COMPLETADA'
-  `).all() as Array<{
-    id: number;
-    created_at: string;
-    metodo_pago: string;
-    total_neto_cup: number;
-    descuento_cup: number;
-    costo_total: number;
-  }>;
-
-  const valesRows = db.prepare(`
-    SELECT id, rubro, monto_desembolsado_cup, created_at
-    FROM caja_chica_vales
-  `).all() as Array<{
-    id: number;
-    rubro: string;
-    monto_desembolsado_cup: number;
-    created_at: string;
-  }>;
-
-  let totalVentas = 0;
-  let costoMercancia = 0;
-  let descuentos = 0;
-  let ticketsCount = 0;
-  const paymentMap = new Map<string, { tickets: number; total_cup: number }>();
-
-  let prevVentas = 0;
-  let prevCosto = 0;
-
-  for (const row of ventasRows) {
-    const localDate = formatLocalYmd(parseSqliteTimestamp(row.created_at));
-    const venta = Number(row.total_neto_cup || 0);
-    const costo = Number(row.costo_total || 0);
-
-    if (localDate === safeDate) {
-      totalVentas += venta;
-      costoMercancia += costo;
-      descuentos += Number(row.descuento_cup || 0);
-      ticketsCount += 1;
-
-      const metodo = String(row.metodo_pago || 'EFECTIVO').trim() || 'EFECTIVO';
-      const bucket = paymentMap.get(metodo) ?? { tickets: 0, total_cup: 0 };
-      bucket.tickets += 1;
-      bucket.total_cup = Number((bucket.total_cup + venta).toFixed(2));
-      paymentMap.set(metodo, bucket);
-    } else if (localDate === prevDate) {
-      prevVentas += venta;
-      prevCosto += costo;
-    }
-  }
-
-  let gastosOperativos = 0;
-  let valesCount = 0;
-  const expenseMap = new Map<string, { vales: number; total_cup: number }>();
-  let prevGastosOp = 0;
-
-  for (const vale of valesRows) {
-    const localDate = formatLocalYmd(parseSqliteTimestamp(vale.created_at));
-    const monto = Number(vale.monto_desembolsado_cup || 0);
-    if (localDate === safeDate) {
-      gastosOperativos += monto;
-      valesCount += 1;
-      const rubro = String(vale.rubro || 'Otros gastos').trim() || 'Otros gastos';
-      const bucket = expenseMap.get(rubro) ?? { vales: 0, total_cup: 0 };
-      bucket.vales += 1;
-      bucket.total_cup = Number((bucket.total_cup + monto).toFixed(2));
-      expenseMap.set(rubro, bucket);
-    } else if (localDate === prevDate) {
-      prevGastosOp += monto;
-    }
-  }
-
-  totalVentas = Number(totalVentas.toFixed(2));
-  costoMercancia = Number(costoMercancia.toFixed(2));
-  gastosOperativos = Number(gastosOperativos.toFixed(2));
-  descuentos = Number(descuentos.toFixed(2));
-
-  const gananciaBruta = Number((totalVentas - costoMercancia).toFixed(2));
-  const totalGastos = Number((costoMercancia + gastosOperativos).toFixed(2));
-  const gananciaNeta = Number((totalVentas - totalGastos).toFixed(2));
-  const margenNetoPct = totalVentas > 0 ? Number(((gananciaNeta / totalVentas) * 100).toFixed(1)) : 0;
-
-  const prevTotalGastos = Number((prevCosto + prevGastosOp).toFixed(2));
-  const prevGananciaNeta = Number((prevVentas - prevTotalGastos).toFixed(2));
-
-  const closedRow = db.prepare(`
-    SELECT fecha_operativa, observaciones, cerrado_en
-    FROM resumenes_diarios
-    WHERE fecha_operativa = ?
-    LIMIT 1
-  `).get(safeDate) as { fecha_operativa: string; observaciones: string | null; cerrado_en: string } | undefined;
-
-  return {
-    fecha_operativa: safeDate,
-    total_ventas_cup: totalVentas,
-    costo_mercancia_cup: costoMercancia,
-    gastos_operativos_cup: gastosOperativos,
-    total_gastos_cup: totalGastos,
-    ganancia_bruta_cup: gananciaBruta,
-    ganancia_neta_cup: gananciaNeta,
-    margen_neto_pct: margenNetoPct,
-    tickets_count: ticketsCount,
-    vales_count: valesCount,
-    descuentos_cup: descuentos,
-    desglose_pagos: Array.from(paymentMap.entries())
-      .map(([metodo, val]) => ({ metodo, tickets: val.tickets, total_cup: val.total_cup }))
-      .sort((a, b) => b.total_cup - a.total_cup),
-    desglose_gastos: Array.from(expenseMap.entries())
-      .map(([rubro, val]) => ({ rubro, vales: val.vales, total_cup: val.total_cup }))
-      .sort((a, b) => b.total_cup - a.total_cup),
-    comparativa_ayer: {
-      fecha: prevDate,
-      total_ventas_cup: Number(prevVentas.toFixed(2)),
-      total_gastos_cup: prevTotalGastos,
-      ganancia_neta_cup: prevGananciaNeta,
-    },
-    cerrado: Boolean(closedRow),
-    cerrado_en: closedRow?.cerrado_en ?? null,
-    observaciones: closedRow?.observaciones ?? null,
-  };
-}
-
-app.get('/api/resumen-diario', (req: Request, res: Response) => {
-  const now = new Date();
-  const todayStr = formatLocalYmd(now);
-  const requestedDate = String(req.query.fecha ?? todayStr).trim();
-  const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : todayStr;
-
-  const summary = computeDailySummary(targetDate);
-
-  const cfg = db.prepare(`
-    SELECT hora_cierre_operativo, auto_resumen_diario
-    FROM configuracion_negocio
-    WHERE id = 1
-  `).get() as { hora_cierre_operativo?: string; auto_resumen_diario?: number } | undefined;
-
-  const horaCierre = cfg?.hora_cierre_operativo || '19:00';
-  const autoEnabled = Number(cfg?.auto_resumen_diario ?? 1) === 1;
-
-  const nowHhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const isPastClosingHour = nowHhmm >= horaCierre;
-
-  const prevDate = getPreviousYmd(todayStr);
-  const prevSummary = computeDailySummary(prevDate);
-  const hasPendingPrevDay =
-    !prevSummary.cerrado && (prevSummary.tickets_count > 0 || prevSummary.vales_count > 0);
-
-  let shouldAutoPrompt = false;
-  let autoPromptReason: 'closing_time' | 'previous_day_unclosed' | null = null;
-  let autoPromptDate = todayStr;
-
-  if (autoEnabled) {
-    if (!summary.cerrado && targetDate === todayStr && isPastClosingHour) {
-      shouldAutoPrompt = true;
-      autoPromptReason = 'closing_time';
-      autoPromptDate = todayStr;
-    } else if (hasPendingPrevDay && targetDate === todayStr) {
-      shouldAutoPrompt = true;
-      autoPromptReason = 'previous_day_unclosed';
-      autoPromptDate = prevDate;
-    }
-  }
-
-  const recentSummaries = db.prepare(`
-    SELECT *
-    FROM resumenes_diarios
-    ORDER BY fecha_operativa DESC
-    LIMIT 7
-  `).all();
-
-  res.status(200).json({
-    summary,
-    today: todayStr,
-    now_hhmm: nowHhmm,
-    config: {
-      hora_cierre_operativo: horaCierre,
-      auto_resumen_diario: autoEnabled,
-    },
-    should_auto_prompt: shouldAutoPrompt,
-    auto_prompt_reason: autoPromptReason,
-    auto_prompt_date: autoPromptDate,
-    pending_previous_date: hasPendingPrevDay ? prevDate : null,
-    recent_summaries: recentSummaries,
-  });
-});
-
-app.post('/api/resumen-diario/cerrar', (req: Request, res: Response) => {
-  try {
-    const todayStr = formatLocalYmd(new Date());
-    const rawDate = String(req.body?.fecha ?? todayStr).trim();
-    const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : todayStr;
-    const observaciones = String(req.body?.observaciones ?? '').trim() || null;
-
-    const saved = runInTransaction(() => {
-      const summary = computeDailySummary(targetDate);
-      db.prepare(`
-        INSERT INTO resumenes_diarios (
-          fecha_operativa, total_ventas_cup, costo_mercancia_cup, gastos_operativos_cup,
-          total_gastos_cup, ganancia_bruta_cup, ganancia_neta_cup, margen_neto_pct,
-          tickets_count, vales_count, descuentos_cup, observaciones, cerrado_en
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(fecha_operativa) DO UPDATE SET
-          total_ventas_cup = excluded.total_ventas_cup,
-          costo_mercancia_cup = excluded.costo_mercancia_cup,
-          gastos_operativos_cup = excluded.gastos_operativos_cup,
-          total_gastos_cup = excluded.total_gastos_cup,
-          ganancia_bruta_cup = excluded.ganancia_bruta_cup,
-          ganancia_neta_cup = excluded.ganancia_neta_cup,
-          margen_neto_pct = excluded.margen_neto_pct,
-          tickets_count = excluded.tickets_count,
-          vales_count = excluded.vales_count,
-          descuentos_cup = excluded.descuentos_cup,
-          observaciones = excluded.observaciones,
-          cerrado_en = CURRENT_TIMESTAMP
-      `).run(
-        summary.fecha_operativa,
-        summary.total_ventas_cup,
-        summary.costo_mercancia_cup,
-        summary.gastos_operativos_cup,
-        summary.total_gastos_cup,
-        summary.ganancia_bruta_cup,
-        summary.ganancia_neta_cup,
-        summary.margen_neto_pct,
-        summary.tickets_count,
-        summary.vales_count,
-        summary.descuentos_cup,
-        observaciones
-      );
-
-      return computeDailySummary(targetDate);
-    });
-
-    res.status(200).json({ success: true, summary: saved });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
-app.post('/api/resumen-diario/config', (req: Request, res: Response) => {
-  try {
-    const rawHora = req.body?.hora_cierre_operativo;
-    const rawAuto = req.body?.auto_resumen_diario;
-
-    const current = db.prepare(`
-      SELECT hora_cierre_operativo, auto_resumen_diario
-      FROM configuracion_negocio
-      WHERE id = 1
-    `).get() as { hora_cierre_operativo?: string; auto_resumen_diario?: number } | undefined;
-
-    let horaCierre = current?.hora_cierre_operativo || '19:00';
-    if (typeof rawHora === 'string' && rawHora.trim() !== '') {
-      const cleaned = rawHora.trim();
-      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(cleaned)) {
-        res.status(400).json({
-          success: false,
-          error: 'Formato de hora inválido. Usa HH:MM en formato 24 horas (ej. 19:00).',
-        });
-        return;
-      }
-      horaCierre = cleaned;
-    }
-
-    const autoEnabled =
-      typeof rawAuto === 'boolean'
-        ? rawAuto
-          ? 1
-          : 0
-        : Number(current?.auto_resumen_diario ?? 1);
-
-    db.prepare(`
-      UPDATE configuracion_negocio
-      SET hora_cierre_operativo = ?, auto_resumen_diario = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = 1
-    `).run(horaCierre, autoEnabled);
-
-    res.status(200).json({
-      success: true,
-      config: {
-        hora_cierre_operativo: horaCierre,
-        auto_resumen_diario: autoEnabled === 1,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
 // ---------------------------------------------------------------------------
 // API ENDPOINTS: PETTY CASH, CLIENTS, SANGRIAS, LIQUIDACIONES, BACKUP (SQLite)
 // ---------------------------------------------------------------------------
@@ -1762,6 +1566,7 @@ interface CajaChicaValeRow {
   folio_vale: string;
   turno_id: number | null;
   autorizado_por: number;
+  fondo_id: number | null;
   beneficiario_nombre: string;
   beneficiario_ci: string;
   rubro: string;
@@ -1777,6 +1582,7 @@ interface CajaChicaValeRow {
 interface CajaChicaArqueoRow {
   id: number;
   folio_arqueo: string;
+  fondo_id: number | null;
   fondo_fijo_cup: number;
   total_vales_cup: number;
   saldo_esperado_cup: number;
@@ -1792,23 +1598,119 @@ interface CajaChicaArqueoRow {
   created_at: string;
 }
 
-function getCajaChicaSnapshot() {
-  const config = db
-    .prepare('SELECT fondo_fijo_caja_chica, tope_vale_caja_chica FROM configuracion_negocio WHERE id = 1')
-    .get() as { fondo_fijo_caja_chica: number; tope_vale_caja_chica: number } | undefined;
+interface CajaChicaFondoRow {
+  id: number;
+  nombre: string;
+  monto_asignado_cup: number;
+  tope_vale_cup: number;
+  activo: number;
+  created_at: string;
+  updated_at: string;
+}
 
-  const fondo_fijo = Number(config?.fondo_fijo_caja_chica ?? 25000.0);
-  const tope_vale = Number(config?.tope_vale_caja_chica ?? 5000.0);
+interface CajaChicaFondoResumen extends CajaChicaFondoRow {
+  total_desembolsado: number;
+  saldo_disponible: number;
+  vales_activos_count: number;
+}
+
+function listFondosResumen(): CajaChicaFondoResumen[] {
+  const rows = db
+    .prepare(`
+      SELECT
+        f.*,
+        COALESCE(SUM(
+          CASE WHEN COALESCE(v.estado_ciclo, 'ACTIVO') = 'ACTIVO' THEN v.monto_desembolsado_cup ELSE 0 END
+        ), 0.0) AS total_desembolsado,
+        COALESCE(SUM(
+          CASE WHEN COALESCE(v.estado_ciclo, 'ACTIVO') = 'ACTIVO' THEN 1 ELSE 0 END
+        ), 0) AS vales_activos_count
+      FROM caja_chica_fondos f
+      LEFT JOIN caja_chica_vales v ON v.fondo_id = f.id
+      WHERE f.activo = 1
+      GROUP BY f.id
+      ORDER BY f.id ASC
+    `)
+    .all() as unknown as Array<CajaChicaFondoRow & { total_desembolsado: number; vales_activos_count: number }>;
+
+  return rows.map((row) => {
+    const monto = roundMoney(Number(row.monto_asignado_cup ?? 0));
+    const desembolsado = roundMoney(Number(row.total_desembolsado ?? 0));
+    return {
+      ...row,
+      monto_asignado_cup: monto,
+      tope_vale_cup: roundMoney(Number(row.tope_vale_cup ?? 0)),
+      total_desembolsado: desembolsado,
+      saldo_disponible: roundMoney(Math.max(0, monto - desembolsado)),
+      vales_activos_count: Number(row.vales_activos_count ?? 0),
+    };
+  });
+}
+
+function resolveFondo(fondoIdRaw: unknown): CajaChicaFondoRow {
+  const fondos = db
+    .prepare('SELECT * FROM caja_chica_fondos WHERE activo = 1 ORDER BY id ASC')
+    .all() as unknown as CajaChicaFondoRow[];
+  if (fondos.length === 0) {
+    throw new ApiError(400, 'No hay fondos de caja chica activos. Crea uno en Configuración.');
+  }
+  if (fondoIdRaw === undefined || fondoIdRaw === null || fondoIdRaw === '') {
+    return fondos[0];
+  }
+  const fondoId = Number(fondoIdRaw);
+  if (!Number.isInteger(fondoId) || fondoId <= 0) {
+    throw new ApiError(400, 'Fondo de caja chica inválido.');
+  }
+  const found = fondos.find((f) => Number(f.id) === fondoId);
+  if (!found) {
+    throw new ApiError(404, 'El fondo de caja chica no existe o está inactivo.');
+  }
+  return found;
+}
+
+function getCajaChicaSnapshot(fondoId?: number) {
+  const config = db
+    .prepare('SELECT tope_vale_caja_chica FROM configuracion_negocio WHERE id = 1')
+    .get() as { tope_vale_caja_chica: number } | undefined;
+  const topeFallback = roundMoney(Number(config?.tope_vale_caja_chica ?? 5000.0));
+
+  const fondos = listFondosResumen();
+  const selected =
+    (fondoId !== undefined ? fondos.find((f) => Number(f.id) === Number(fondoId)) : undefined) ?? fondos[0] ?? null;
+
+  if (!selected) {
+    return {
+      fondo_fijo: 0,
+      tope_vale: topeFallback,
+      total_desembolsado: 0,
+      saldo_disponible: 0,
+      porcentaje_disponible: 0,
+      vales_activos_count: 0,
+      pendientes_factura_count: 0,
+      vales_hoy: 0,
+      total_hoy: 0,
+      desglose_rubros: [] as Array<{ rubro: string; total: number; porcentaje: number }>,
+      vales: [] as CajaChicaValeRow[],
+      arqueos: [] as CajaChicaArqueoRow[],
+      ultimo_arqueo: null,
+      fondos,
+      fondo_actual_id: null,
+      fondo_actual_nombre: null,
+    };
+  }
+
+  const fondo_fijo = roundMoney(Number(selected.monto_asignado_cup ?? 0));
+  const tope_vale = roundMoney(Number(selected.tope_vale_cup ?? 0)) || topeFallback;
 
   const vales = db
-    .prepare('SELECT * FROM caja_chica_vales ORDER BY id DESC LIMIT 100')
-    .all() as unknown as CajaChicaValeRow[];
+    .prepare('SELECT * FROM caja_chica_vales WHERE fondo_id = ? ORDER BY id DESC LIMIT 100')
+    .all(selected.id) as unknown as CajaChicaValeRow[];
 
   const activeVales = vales.filter((v) => (v.estado_ciclo || 'ACTIVO') === 'ACTIVO');
-  const total_desembolsado = Number(
-    activeVales.reduce((sum, v) => sum + Number(v.monto_desembolsado_cup || 0), 0).toFixed(2)
+  const total_desembolsado = roundMoney(
+    activeVales.reduce((sum, v) => sum + Number(v.monto_desembolsado_cup || 0), 0)
   );
-  const saldo_disponible = Number(Math.max(0.0, fondo_fijo - total_desembolsado).toFixed(2));
+  const saldo_disponible = roundMoney(Math.max(0.0, fondo_fijo - total_desembolsado));
   const porcentaje_disponible =
     fondo_fijo > 0 ? Number(((saldo_disponible / fondo_fijo) * 100).toFixed(1)) : 0;
 
@@ -1832,8 +1734,8 @@ function getCajaChicaSnapshot() {
     .sort((a, b) => b.total - a.total);
 
   const arqueos = db
-    .prepare('SELECT * FROM caja_chica_arqueos ORDER BY id DESC LIMIT 20')
-    .all() as unknown as CajaChicaArqueoRow[];
+    .prepare('SELECT * FROM caja_chica_arqueos WHERE fondo_id = ? ORDER BY id DESC LIMIT 20')
+    .all(selected.id) as unknown as CajaChicaArqueoRow[];
 
   const todayRow = db
     .prepare(`
@@ -1841,10 +1743,11 @@ function getCajaChicaSnapshot() {
         COUNT(*) AS vales_hoy,
         COALESCE(SUM(monto_desembolsado_cup), 0.0) AS total_hoy
       FROM caja_chica_vales
-      WHERE DATE(created_at) = DATE('now', 'localtime')
+      WHERE fondo_id = ?
+        AND DATE(created_at, 'localtime') = DATE('now', 'localtime')
         AND COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
     `)
-    .get() as { vales_hoy: number; total_hoy: number };
+    .get(selected.id) as { vales_hoy: number; total_hoy: number };
 
   return {
     fondo_fijo,
@@ -1860,11 +1763,150 @@ function getCajaChicaSnapshot() {
     vales,
     arqueos,
     ultimo_arqueo: arqueos[0] ?? null,
+    fondos,
+    fondo_actual_id: selected.id,
+    fondo_actual_nombre: selected.nombre,
   };
 }
 
-app.get('/api/caja-chica', (_req: Request, res: Response) => {
-  res.status(200).json(getCajaChicaSnapshot());
+app.get('/api/caja-chica', (req: Request, res: Response) => {
+  try {
+    const raw = req.query.fondo_id;
+    const fondoId = raw === undefined || raw === '' ? undefined : Number(raw);
+    if (fondoId !== undefined && (!Number.isInteger(fondoId) || fondoId <= 0)) {
+      throw new ApiError(400, 'Fondo de caja chica inválido.');
+    }
+    res.status(200).json(getCajaChicaSnapshot(fondoId));
+  } catch (err) {
+    respondError(res, err);
+  }
+});
+
+app.post('/api/caja-chica/fondos', (req: Request, res: Response) => {
+  try {
+    const nombre = String(req.body?.nombre ?? '').trim();
+    const monto = parseMoney(req.body?.monto_asignado_cup ?? 0, 'El monto asignado');
+    const tope = parseMoney(req.body?.tope_vale_cup ?? 5000, 'El tope por vale');
+
+    if (!nombre) {
+      throw new ApiError(400, 'El nombre del fondo es obligatorio.');
+    }
+    if (monto < 0) {
+      throw new ApiError(400, 'El monto asignado no puede ser negativo.');
+    }
+    if (tope < 0) {
+      throw new ApiError(400, 'El tope por vale no puede ser negativo.');
+    }
+
+    const dup = db
+      .prepare('SELECT id FROM caja_chica_fondos WHERE LOWER(nombre) = LOWER(?)')
+      .get(nombre);
+    if (dup) {
+      throw new ApiError(409, `Ya existe un fondo llamado "${nombre}".`);
+    }
+
+    const info = db
+      .prepare(`
+        INSERT INTO caja_chica_fondos (nombre, monto_asignado_cup, tope_vale_cup)
+        VALUES (?, ?, ?)
+      `)
+      .run(nombre, monto, tope);
+
+    res.status(201).json({
+      success: true,
+      fondo_id: Number(info.lastInsertRowid),
+      ...getCajaChicaSnapshot(Number(info.lastInsertRowid)),
+    });
+  } catch (err) {
+    respondError(res, err);
+  }
+});
+
+app.put('/api/caja-chica/fondos/:id', (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new ApiError(400, 'Fondo de caja chica inválido.');
+    }
+
+    const current = db.prepare('SELECT * FROM caja_chica_fondos WHERE id = ?').get(id) as
+      | CajaChicaFondoRow
+      | undefined;
+    if (!current) {
+      throw new ApiError(404, 'El fondo de caja chica no existe.');
+    }
+
+    const nombre =
+      req.body?.nombre === undefined ? current.nombre : String(req.body.nombre ?? '').trim();
+    const monto =
+      req.body?.monto_asignado_cup === undefined
+        ? Number(current.monto_asignado_cup)
+        : parseMoney(req.body.monto_asignado_cup, 'El monto asignado');
+    const tope =
+      req.body?.tope_vale_cup === undefined
+        ? Number(current.tope_vale_cup)
+        : parseMoney(req.body.tope_vale_cup, 'El tope por vale');
+    const activo =
+      req.body?.activo === undefined ? Number(current.activo) : req.body.activo === true ? 1 : 0;
+
+    if (!nombre) {
+      throw new ApiError(400, 'El nombre del fondo es obligatorio.');
+    }
+    if (monto < 0 || tope < 0) {
+      throw new ApiError(400, 'El monto asignado y el tope por vale no pueden ser negativos.');
+    }
+
+    const dup = db
+      .prepare('SELECT id FROM caja_chica_fondos WHERE LOWER(nombre) = LOWER(?) AND id <> ?')
+      .get(nombre, id);
+    if (dup) {
+      throw new ApiError(409, `Ya existe otro fondo llamado "${nombre}".`);
+    }
+
+    if (monto < Number(current.monto_asignado_cup ?? 0)) {
+      const activeSum = db
+        .prepare(`
+          SELECT COALESCE(SUM(monto_desembolsado_cup), 0.0) AS total
+          FROM caja_chica_vales
+          WHERE fondo_id = ? AND COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
+        `)
+        .get(id) as { total: number };
+      const activoTotal = roundMoney(Number(activeSum?.total ?? 0));
+      if (roundMoney(monto) < activoTotal) {
+        throw new ApiError(
+          400,
+          `No puedes reducir el monto por debajo de los vales activos ($${activoTotal.toFixed(2)} CUP).`
+        );
+      }
+    }
+
+    if (activo === 0) {
+      const activeVales = db
+        .prepare(
+          "SELECT COUNT(*) AS cnt FROM caja_chica_vales WHERE fondo_id = ? AND COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'"
+        )
+        .get(id) as { cnt: number };
+      if (Number(activeVales?.cnt ?? 0) > 0) {
+        throw new ApiError(400, 'No puedes desactivar un fondo con vales activos.');
+      }
+      const activos = db
+        .prepare('SELECT COUNT(*) AS cnt FROM caja_chica_fondos WHERE activo = 1')
+        .get() as { cnt: number };
+      if (Number(activos?.cnt ?? 0) <= 1) {
+        throw new ApiError(400, 'Debe quedar al menos un fondo de caja chica activo.');
+      }
+    }
+
+    db.prepare(`
+      UPDATE caja_chica_fondos
+      SET nombre = ?, monto_asignado_cup = ?, tope_vale_cup = ?, activo = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(nombre, monto, tope, activo, id);
+
+    res.status(200).json({ success: true, ...getCajaChicaSnapshot(id) });
+  } catch (err) {
+    respondError(res, err);
+  }
 });
 
 app.post('/api/caja-chica/vales', (req: Request, res: Response) => {
@@ -1872,47 +1914,51 @@ app.post('/api/caja-chica/vales', (req: Request, res: Response) => {
     const benef = String(req.body?.beneficiario_nombre ?? '').trim();
     const ci = String(req.body?.beneficiario_ci ?? '').trim();
     const rubro = String(req.body?.rubro ?? 'Insumos y Embalaje').trim() || 'Insumos y Embalaje';
-    const monto = Number(req.body?.monto_desembolsado_cup ?? 0);
+    const monto = parseMoney(req.body?.monto_desembolsado_cup ?? 0, 'El monto a desembolsar');
     const concepto = String(req.body?.concepto_justificacion ?? '').trim();
     const compromisoFactura = req.body?.compromiso_factura_24h === false ? 0 : 1;
     const facturaEntregada = req.body?.factura_entregada === true ? 1 : 0;
     const avalAdmin = req.body?.aval_admin === true;
 
     if (!benef) {
-      res.status(400).json({ success: false, error: 'El nombre del beneficiario es obligatorio.' });
-      return;
+      throw new ApiError(400, 'El nombre del beneficiario es obligatorio.');
+    }
+    if (!ci) {
+      throw new ApiError(400, 'El carnet de identidad del beneficiario es obligatorio.');
     }
     if (!concepto) {
-      res.status(400).json({ success: false, error: 'El concepto y justificación del gasto son obligatorios.' });
-      return;
+      throw new ApiError(400, 'El concepto y justificación del gasto son obligatorios.');
     }
-    if (!Number.isFinite(monto) || Number.isNaN(monto) || monto <= 0) {
-      res.status(400).json({ success: false, error: 'El monto a desembolsar debe ser mayor a 0 CUP.' });
-      return;
+    if (monto <= 0) {
+      throw new ApiError(400, 'El monto a desembolsar debe ser mayor a 0 CUP.');
     }
 
     const result = runInTransaction(() => {
-      const config = db
-        .prepare('SELECT fondo_fijo_caja_chica, tope_vale_caja_chica FROM configuracion_negocio WHERE id = 1')
-        .get() as { fondo_fijo_caja_chica: number; tope_vale_caja_chica: number } | undefined;
+      const fondo = resolveFondo(req.body?.fondo_id);
+      const topeVale = roundMoney(Number(fondo.tope_vale_cup ?? 0));
 
-      const fondoFijo = Number(config?.fondo_fijo_caja_chica ?? 25000.0);
-      const topeVale = Number(config?.tope_vale_caja_chica ?? 5000.0);
-
-      if (monto > topeVale && !avalAdmin) {
-        throw new Error(
+      if (topeVale > 0 && monto > topeVale && !avalAdmin) {
+        throw new ApiError(
+          400,
           `El importe ($${monto.toFixed(2)} CUP) supera el tope operativo de $${topeVale.toFixed(2)} CUP. Marca el aval de administrador para autorizarlo.`
         );
       }
 
       const activeSumRow = db
-        .prepare("SELECT COALESCE(SUM(monto_desembolsado_cup), 0.0) AS total FROM caja_chica_vales WHERE COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'")
-        .get() as { total: number };
-      const saldoActual = Math.max(0, fondoFijo - Number(activeSumRow?.total ?? 0));
+        .prepare(`
+          SELECT COALESCE(SUM(monto_desembolsado_cup), 0.0) AS total
+          FROM caja_chica_vales
+          WHERE fondo_id = ? AND COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
+        `)
+        .get(fondo.id) as { total: number };
+      const saldoActual = roundMoney(
+        Math.max(0, Number(fondo.monto_asignado_cup ?? 0) - Number(activeSumRow?.total ?? 0))
+      );
 
       if (monto > saldoActual + 0.001) {
-        throw new Error(
-          `Saldo insuficiente en caja chica. Disponible: $${saldoActual.toFixed(2)} CUP.`
+        throw new ApiError(
+          400,
+          `Saldo insuficiente en "${fondo.nombre}". Disponible: $${saldoActual.toFixed(2)} CUP.`
         );
       }
 
@@ -1930,16 +1976,17 @@ app.post('/api/caja-chica/vales', (req: Request, res: Response) => {
       const info = db
         .prepare(`
           INSERT INTO caja_chica_vales (
-            folio_vale, turno_id, autorizado_por, beneficiario_nombre, beneficiario_ci,
+            folio_vale, turno_id, autorizado_por, fondo_id, beneficiario_nombre, beneficiario_ci,
             rubro, monto_desembolsado_cup, concepto_justificacion,
             compromiso_factura_24h, factura_entregada, estado_ciclo, hash_sha256
-          ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?)
+          ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?)
         `)
         .run(
           folio,
           openTurno?.id ?? null,
+          fondo.id,
           benef,
-          ci || 'SIN-CI',
+          ci,
           rubro,
           monto,
           concepto,
@@ -1962,15 +2009,14 @@ app.post('/api/caja-chica/vales', (req: Request, res: Response) => {
         folio_vale: folio,
         hash_sha256: h,
         vale,
-        saldo_disponible: Number(Math.max(0, saldoActual - monto).toFixed(2)),
+        fondo_id: fondo.id,
+        saldo_disponible: roundMoney(Math.max(0, saldoActual - monto)),
       };
     });
 
     res.status(201).json({ success: true, ...result });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const status = message.includes('Saldo insuficiente') || message.includes('tope operativo') ? 400 : 500;
-    res.status(status).json({ success: false, error: message });
+    respondError(res, err);
   }
 });
 
@@ -1978,16 +2024,14 @@ app.put('/api/caja-chica/vales/:id/factura', (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ success: false, error: 'Identificador de vale inválido.' });
-      return;
+      throw new ApiError(400, 'Identificador de vale inválido.');
     }
 
     const current = db
       .prepare('SELECT * FROM caja_chica_vales WHERE id = ?')
       .get(id) as CajaChicaValeRow | undefined;
     if (!current) {
-      res.status(404).json({ success: false, error: 'Vale de caja chica no encontrado.' });
-      return;
+      throw new ApiError(404, 'Vale de caja chica no encontrado.');
     }
 
     const nextValue =
@@ -2006,31 +2050,25 @@ app.put('/api/caja-chica/vales/:id/factura', (req: Request, res: Response) => {
 
     res.status(200).json({ success: true, vale: updated });
   } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+    respondError(res, err);
   }
 });
 
 app.post('/api/caja-chica/arqueo', (req: Request, res: Response) => {
   try {
-    const efectivoContado = Number(req.body?.efectivo_contado_cup);
+    const efectivoContado = parseMoney(req.body?.efectivo_contado_cup, 'El efectivo contado');
     const responsable = String(req.body?.responsable_nombre ?? 'Caja Central').trim() || 'Caja Central';
     const observaciones = String(req.body?.observaciones ?? '').trim() || null;
     const desgloseBilletes = req.body?.desglose_billetes ?? null;
     const cerrarComoReembolso = req.body?.cerrar_como_reembolso === true;
 
-    if (!Number.isFinite(efectivoContado) || Number.isNaN(efectivoContado) || efectivoContado < 0) {
-      res.status(400).json({
-        success: false,
-        error: 'El efectivo físico contado debe ser un número mayor o igual a 0 CUP.',
-      });
-      return;
+    if (efectivoContado < 0) {
+      throw new ApiError(400, 'El efectivo físico contado debe ser un número mayor o igual a 0 CUP.');
     }
 
     const arqueo = runInTransaction(() => {
-      const config = db
-        .prepare('SELECT fondo_fijo_caja_chica FROM configuracion_negocio WHERE id = 1')
-        .get() as { fondo_fijo_caja_chica: number } | undefined;
-      const fondoFijo = Number(config?.fondo_fijo_caja_chica ?? 25000.0);
+      const fondo = resolveFondo(req.body?.fondo_id);
+      const fondoFijo = roundMoney(Number(fondo.monto_asignado_cup ?? 0));
 
       const activeStats = db
         .prepare(`
@@ -2038,15 +2076,15 @@ app.post('/api/caja-chica/arqueo', (req: Request, res: Response) => {
             COUNT(*) AS cnt,
             COALESCE(SUM(monto_desembolsado_cup), 0.0) AS total
           FROM caja_chica_vales
-          WHERE COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
+          WHERE fondo_id = ? AND COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
         `)
-        .get() as { cnt: number; total: number };
+        .get(fondo.id) as { cnt: number; total: number };
 
-      const totalVales = Number(Number(activeStats?.total ?? 0).toFixed(2));
+      const totalVales = roundMoney(Number(activeStats?.total ?? 0));
       const valesIncluidos = Number(activeStats?.cnt ?? 0);
-      const saldoEsperado = Number(Math.max(0, fondoFijo - totalVales).toFixed(2));
-      const contadoRounded = Number(efectivoContado.toFixed(2));
-      const diferencia = Number((contadoRounded - saldoEsperado).toFixed(2));
+      const saldoEsperado = roundMoney(Math.max(0, fondoFijo - totalVales));
+      const contadoRounded = roundMoney(efectivoContado);
+      const diferencia = roundMoney(contadoRounded - saldoEsperado);
 
       let estado = 'CUADRADO';
       if (diferencia > 0.009) estado = 'SOBRANTE';
@@ -2060,19 +2098,20 @@ app.post('/api/caja-chica/arqueo', (req: Request, res: Response) => {
       const desgloseJson = desgloseBilletes ? JSON.stringify(desgloseBilletes) : null;
       const reintegroAplicado = cerrarComoReembolso && valesIncluidos > 0 ? 1 : 0;
       const h = hashSha256(
-        `${folio}|${fondoFijo.toFixed(2)}|${totalVales.toFixed(2)}|${contadoRounded.toFixed(2)}|${diferencia.toFixed(2)}`
+        `${folio}|${fondo.id}|${fondoFijo.toFixed(2)}|${totalVales.toFixed(2)}|${contadoRounded.toFixed(2)}|${diferencia.toFixed(2)}`
       );
 
       const info = db
         .prepare(`
           INSERT INTO caja_chica_arqueos (
-            folio_arqueo, fondo_fijo_cup, total_vales_cup, saldo_esperado_cup,
+            folio_arqueo, fondo_id, fondo_fijo_cup, total_vales_cup, saldo_esperado_cup,
             efectivo_contado_cup, diferencia_cup, estado, desglose_billetes_json,
             responsable_nombre, observaciones, vales_incluidos, reintegro_aplicado, hash_sha256
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
         .run(
           folio,
+          fondo.id,
           fondoFijo,
           totalVales,
           saldoEsperado,
@@ -2088,7 +2127,11 @@ app.post('/api/caja-chica/arqueo', (req: Request, res: Response) => {
         );
 
       if (reintegroAplicado === 1) {
-        db.prepare("UPDATE caja_chica_vales SET estado_ciclo = 'REINTEGRADO' WHERE COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'").run();
+        db.prepare(`
+          UPDATE caja_chica_vales
+          SET estado_ciclo = 'REINTEGRADO'
+          WHERE fondo_id = ? AND COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
+        `).run(fondo.id);
       }
 
       return db
@@ -2096,36 +2139,44 @@ app.post('/api/caja-chica/arqueo', (req: Request, res: Response) => {
         .get(Number(info.lastInsertRowid)) as unknown as CajaChicaArqueoRow;
     });
 
-    const dailySummary = computeDailySummary(formatLocalYmd(new Date()));
-    res.status(201).json({ success: true, arqueo, daily_summary: dailySummary });
+    res.status(201).json({ success: true, arqueo, ...getCajaChicaSnapshot(arqueo.fondo_id ?? undefined) });
   } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+    respondError(res, err);
   }
 });
 
-app.post('/api/caja-chica/reponer', (_req: Request, res: Response) => {
+app.post('/api/caja-chica/reponer', (req: Request, res: Response) => {
   try {
+    const fondo = resolveFondo(req.body?.fondo_id);
     const settledCount = runInTransaction(() => {
       const info = db
-        .prepare("UPDATE caja_chica_vales SET estado_ciclo = 'REINTEGRADO' WHERE COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'")
-        .run();
+        .prepare(`
+          UPDATE caja_chica_vales
+          SET estado_ciclo = 'REINTEGRADO'
+          WHERE fondo_id = ? AND COALESCE(estado_ciclo, 'ACTIVO') = 'ACTIVO'
+        `)
+        .run(fondo.id);
       return Number(info.changes ?? 0);
     });
 
     res.status(200).json({
       success: true,
       reintegrados: settledCount,
-      ...getCajaChicaSnapshot(),
+      ...getCajaChicaSnapshot(fondo.id),
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+    respondError(res, err);
   }
 });
 
-app.get('/api/caja-chica/export/csv', (_req: Request, res: Response) => {
-  const vales = db
-    .prepare('SELECT * FROM caja_chica_vales ORDER BY id DESC')
-    .all() as unknown as CajaChicaValeRow[];
+app.get('/api/caja-chica/export/csv', (req: Request, res: Response) => {
+  const rawFondo = req.query.fondo_id;
+  const fondoId = rawFondo === undefined || rawFondo === '' ? null : Number(rawFondo);
+  const vales = (
+    fondoId !== null && Number.isInteger(fondoId) && fondoId > 0
+      ? db.prepare('SELECT * FROM caja_chica_vales WHERE fondo_id = ? ORDER BY id DESC').all(fondoId)
+      : db.prepare('SELECT * FROM caja_chica_vales ORDER BY id DESC').all()
+  ) as unknown as CajaChicaValeRow[];
 
   const escapeCsv = (val: string | number | null | undefined): string => {
     const text = String(val ?? '');
@@ -2176,76 +2227,6 @@ app.get('/api/caja-chica/export/csv', (_req: Request, res: Response) => {
   res.status(200).send(csvBody);
 });
 
-app.get('/api/clientes', (_req: Request, res: Response) => {
-  const clientes = db.prepare('SELECT * FROM clientes ORDER BY nombre_completo ASC').all();
-  res.status(200).json({ clientes });
-});
-
-app.post('/api/clientes/abono', (req: Request, res: Response) => {
-  try {
-    const cli_id = Number(req.body?.cliente_id);
-    const monto = Number(req.body?.monto_abonado_cup ?? 0.0);
-    const turno_id = Number(req.body?.turno_id ?? 1);
-    const usuario_id = Number(req.body?.usuario_id ?? 1);
-
-    const result = runInTransaction(() => {
-      const cRow = db.prepare('SELECT saldo_deudor_actual FROM clientes WHERE id = ?').get(cli_id) as { saldo_deudor_actual: number } | undefined;
-      if (!cRow) {
-        throw new Error('Cliente no encontrado');
-      }
-
-      const saldo_ant = cRow.saldo_deudor_actual;
-      const saldo_post = Math.max(0.0, saldo_ant - monto);
-      const ym = new Date().toISOString().slice(0, 7).replace('-', '');
-      const folio = `ABO-${ym}-${String(Math.floor(Date.now() / 1000) % 10000).padStart(4, '0')}`;
-
-      db.prepare(`
-        INSERT INTO credito_abonos (
-          folio_recibo, cliente_id, turno_id, usuario_id, monto_abonado_cup,
-          metodo_pago, saldo_anterior, saldo_posterior
-        ) VALUES (?, ?, ?, ?, ?, 'EFECTIVO', ?, ?)
-      `).run(folio, cli_id, turno_id, usuario_id, monto, saldo_ant, saldo_post);
-
-      db.prepare('UPDATE clientes SET saldo_deudor_actual = ? WHERE id = ?').run(saldo_post, cli_id);
-      db.prepare('UPDATE turnos_caja SET total_abonos_credito_cup = total_abonos_credito_cup + ? WHERE id = ?').run(monto, turno_id);
-
-      return { folio_recibo: folio, saldo_posterior: saldo_post };
-    });
-
-    res.status(201).json({ success: true, ...result });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
-app.post('/api/sangrias', (req: Request, res: Response) => {
-  try {
-    const turno_id = Number(req.body?.turno_id ?? 1);
-    const cajero_id = Number(req.body?.cajero_id ?? 1);
-    const autorizado_por = Number(req.body?.autorizado_por ?? 1);
-    const custodio = String(req.body?.custodio_boveda_nombre ?? 'Custodio Bóveda');
-    const monto = Number(req.body?.monto_retirado_cup ?? 50000.0);
-    const bolsa = String(req.body?.bolsa_seguridad_numero ?? 'B-99812');
-    const folio = `SANG-${new Date().getFullYear()}-${String(Math.floor(Date.now() / 1000) % 10000).padStart(4, '0')}`;
-    const h = hashSha256(`${folio}|${monto}|${custodio}|${bolsa}`);
-
-    runInTransaction(() => {
-      db.prepare(`
-        INSERT INTO sangrias_caja (
-          folio, turno_id, cajero_id, autorizado_por, custodio_boveda_nombre,
-          monto_retirado_cup, bolsa_seguridad_numero, hash_sha256
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(folio, turno_id, cajero_id, autorizado_por, custodio, monto, bolsa, h);
-
-      db.prepare('UPDATE turnos_caja SET total_sangrias_cup = total_sangrias_cup + ? WHERE id = ?').run(monto, turno_id);
-    });
-
-    res.status(201).json({ success: true, folio, hash_sha256: h });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
 app.get('/api/liquidaciones', (_req: Request, res: Response) => {
   const liquidaciones = db.prepare('SELECT * FROM liquidaciones_semanales ORDER BY id DESC LIMIT 10').all();
   res.status(200).json({ liquidaciones });
@@ -2253,19 +2234,35 @@ app.get('/api/liquidaciones', (_req: Request, res: Response) => {
 
 app.post('/api/liquidaciones/guardar', (req: Request, res: Response) => {
   try {
-    const semana = String(req.body?.semana_periodo ?? 'SEMANA');
-    const efectivo_real = Number(req.body?.efectivo_real_caja ?? 0.0);
-    const a_pagar_prov = Number(req.body?.a_pagar_efectivo_proveedores ?? 0.0);
-    const diferencia = Number(req.body?.diferencia_semana ?? 0.0);
-    const ganancia = Number(req.body?.ganancia_semana ?? 0.0);
-    const resto = efectivo_real - a_pagar_prov - diferencia;
-    const resto_mas_ganancias = resto + ganancia;
-    const por_socio = resto_mas_ganancias / 2.0;
+    const semana = String(req.body?.semana_periodo ?? 'SEMANA').trim() || 'SEMANA';
+    const efectivo_real = parseMoney(req.body?.efectivo_real_caja ?? 0.0, 'El efectivo real de caja');
+    const a_pagar_prov = parseMoney(req.body?.a_pagar_efectivo_proveedores ?? 0.0, 'El pago a proveedores');
+    const diferencia = parseMoney(req.body?.diferencia_semana ?? 0.0, 'La diferencia de la semana');
+    const ganancia = parseMoney(req.body?.ganancia_semana ?? 0.0, 'La ganancia de la semana');
+
+    if (efectivo_real < 0 || a_pagar_prov < 0) {
+      throw new ApiError(400, 'El efectivo real y el pago a proveedores no pueden ser negativos.');
+    }
+
+    const resto = roundMoney(efectivo_real - a_pagar_prov - diferencia);
+    if (resto < 0) {
+      throw new ApiError(
+        400,
+        `El cuadre no cierra: los pagos y la diferencia ($${(a_pagar_prov + diferencia).toFixed(2)} CUP) superan el efectivo real ($${efectivo_real.toFixed(2)} CUP).`
+      );
+    }
+    const resto_mas_ganancias = roundMoney(resto + ganancia);
+    const por_socio = roundMoney(resto_mas_ganancias / 2.0);
 
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1);
     const weekNum = Math.ceil(((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
     const folio = `LIQ-SEM-${now.getFullYear()}-${String(weekNum).padStart(2, '0')}`;
+
+    const existente = db.prepare('SELECT id FROM liquidaciones_semanales WHERE folio_liquidacion = ?').get(folio);
+    if (existente) {
+      throw new ApiError(409, `Ya existe una liquidación guardada para esta semana (${folio}).`);
+    }
 
     db.prepare(`
       INSERT INTO liquidaciones_semanales (
@@ -2282,21 +2279,48 @@ app.post('/api/liquidaciones/guardar', (req: Request, res: Response) => {
       total_entre_dos: por_socio,
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+    respondError(res, err);
   }
 });
 
-app.post('/api/respaldo/ejecutar', async (_req: Request, res: Response) => {
+app.get('/api/respaldos', (_req: Request, res: Response) => {
+  try {
+    res.status(200).json({ success: true, respaldos: listSqliteBackups() });
+  } catch (err) {
+    respondError(res, err);
+  }
+});
+
+app.post('/api/respaldos/crear', async (_req: Request, res: Response) => {
   try {
     const result = await createSqliteBackup();
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      archivo: result.destFile,
+      archivo: result.destFile.replace(/^backups[\\/]/, ''),
+      ruta: result.destFile,
       hash_sha256: result.hashSha256,
-      mensaje: 'Checkpoint WAL consolidado y clonación SQLite completada',
+      respaldos: listSqliteBackups(),
+      mensaje: 'Respaldo creado correctamente.',
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+    respondError(res, err);
+  }
+});
+
+app.post('/api/respaldos/restaurar', (req: Request, res: Response) => {
+  try {
+    const archivo = String(req.body?.archivo ?? '').trim();
+    if (!archivo) {
+      throw new ApiError(400, 'Selecciona el respaldo que deseas restaurar.');
+    }
+    const result = restoreSqliteBackup(archivo);
+    res.status(200).json({
+      success: true,
+      ...result,
+      mensaje: 'Respaldo restaurado. Recarga la aplicación para ver los datos.',
+    });
+  } catch (err) {
+    respondError(res, err);
   }
 });
 
@@ -2319,12 +2343,9 @@ const PAGE_ALIASES: Record<string, string> = {
   'ventas-tpv': 'pos.html',
   'inventario': 'inventario.html',
   'inventario-y-kardex': 'inventario.html',
-  'cierre': 'cierre_caja.html',
-  'cierre-caja': 'cierre_caja.html',
   'caja-chica': 'caja_chica.html',
   'caja-chica-y-gastos': 'caja_chica.html',
   'caja-chica-y-gastos-operativos-menores': 'caja_chica.html',
-  'sangria': 'sangria.html',
   'proveedores': 'proveedores.html',
   'proveedores-compras': 'proveedores.html',
   'catalogo-y-cuentas-por-pagar': 'proveedores.html',
@@ -2333,21 +2354,10 @@ const PAGE_ALIASES: Record<string, string> = {
   'cuadre': 'cuadre_semanal.html',
   'cuadre-semanal': 'cuadre_semanal.html',
   'cuadre-semanal-y-liquidacion-de-ganancias': 'cuadre_semanal.html',
-  'kardex': 'kardex.html',
-  'kardex-y-actas-de-baja-mermas': 'kardex.html',
-  'clientes': 'clientes.html',
-  'clientes-y-creditos': 'clientes.html',
-  'mantenimiento': 'mantenimiento.html',
-  'respaldo-y-mantenimiento-sqlite': 'mantenimiento.html',
-  'reportes': 'reportes.html',
-  'reportes-financieros': 'reportes.html',
-  'reporte-stock-bajo': 'reporte_stock_bajo.html',
-  'stock-bajo-imprimible': 'reporte_stock_bajo.html',
-  'recepcion': 'recepcion.html',
-  'recepcion-de-mercancia-entradas': 'recepcion.html',
-  'comprobantes': 'comprobantes_pago.html',
-  'comprobantes-pago': 'comprobantes_pago.html',
-  'historial-de-comprobantes-de-pago': 'comprobantes_pago.html',
+  'configuracion': 'configuracion.html',
+  'mantenimiento': 'configuracion.html',
+  'respaldo-y-mantenimiento-sqlite': 'configuracion.html',
+  'respaldos': 'configuracion.html',
 };
 
 const NAV_BRIDGE_SCRIPT = `
@@ -2379,19 +2389,11 @@ const NAV_BRIDGE_SCRIPT = `
     'caja-chica': '/caja-chica',
     'caja-chica-y-gastos': '/caja-chica',
     'caja-chica-y-gastos-operativos-menores': '/caja-chica',
-    'cierre-caja': '/cierre-caja',
     'cuadre': '/cuadre',
     'cuadre-semanal-y-liquidacion-de-ganancias': '/cuadre',
-    'clientes': '/clientes',
-    'clientes-y-creditos': '/clientes',
-    'reportes': '/reportes',
-    'reportes-financieros': '/reportes',
-    'reporte-stock-bajo': '/reporte-stock-bajo',
-    'kardex-y-actas-de-baja-mermas': '/kardex',
-    'historial-de-comprobantes-de-pago': '/comprobantes',
-    'mantenimiento': '/mantenimiento',
-    'respaldo-y-mantenimiento-sqlite': '/mantenimiento',
-    'recepcion-de-mercancia-entradas': '/recepcion'
+    'configuracion': '/configuracion',
+    'mantenimiento': '/configuracion',
+    'respaldo-y-mantenimiento-sqlite': '/configuracion'
   };
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -2404,8 +2406,6 @@ const NAV_BRIDGE_SCRIPT = `
   });
 })();
 </script>
-<div id="gt-daily-summary-root"></div>
-<script type="module" src="/assets/daily-summary-app.js"></script>
 <div id="gt-stock-alert-monitor-root"></div>
 <script type="module" src="/assets/stock-alert-monitor-app.js"></script>
 `;
