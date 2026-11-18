@@ -13,8 +13,6 @@ const REQUIRED_BUNDLES = [
   'assets/pos-app.js',
   'assets/suppliers-app.js',
   'assets/petty-cash-app.js',
-  'assets/low-stock-report-app.js',
-  'assets/daily-summary-app.js',
   'assets/stock-alert-monitor-app.js',
 ];
 

@@ -334,15 +334,6 @@ export const RestockPrioritySummary: React.FC<RestockPrioritySummaryProps> = ({
               <span>{collapsed ? 'Ver lista' : 'Contraer'}</span>
             </button>
           )}
-
-          <a
-            className="h-9 px-3.5 rounded-xl bg-white hover:bg-[#F5F7FD] text-[#182034] font-label-sm text-label-sm font-semibold border border-[#E8EEF7] inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
-            href="/reporte-stock-bajo"
-          >
-            <span className="material-symbols-outlined text-[16px]">print</span>
-            <span>Reporte Imprimible</span>
-          </a>
-
           <a
             className="h-9 px-4 rounded-xl bg-[#0E4BFF] hover:bg-[#0B3EDB] text-white font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 shadow-[0_4px_12px_rgba(14,75,255,0.22)] transition-colors whitespace-nowrap shrink-0"
             href="/inventario"

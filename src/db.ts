@@ -247,11 +247,22 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS caja_chica_fondos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL UNIQUE,
+    monto_asignado_cup REAL NOT NULL DEFAULT 0.0,
+    tope_vale_cup REAL NOT NULL DEFAULT 5000.0,
+    activo INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS caja_chica_vales (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     folio_vale TEXT NOT NULL UNIQUE,
     turno_id INTEGER REFERENCES turnos_caja(id),
     autorizado_por INTEGER NOT NULL REFERENCES usuarios(id),
+    fondo_id INTEGER REFERENCES caja_chica_fondos(id),
     beneficiario_nombre TEXT NOT NULL,
     beneficiario_ci TEXT NOT NULL,
     rubro TEXT NOT NULL,
@@ -302,6 +313,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS caja_chica_arqueos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     folio_arqueo TEXT NOT NULL UNIQUE,
+    fondo_id INTEGER REFERENCES caja_chica_fondos(id),
     fondo_fijo_cup REAL NOT NULL,
     total_vales_cup REAL NOT NULL,
     saldo_esperado_cup REAL NOT NULL,
@@ -334,16 +346,46 @@ db.exec(`
     cerrado_en DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS caja_gaveta_movimientos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    turno_id INTEGER NOT NULL REFERENCES turnos_caja(id),
+    tipo TEXT NOT NULL,
+    monto_cup REAL NOT NULL,
+    efecto_cup REAL NOT NULL,
+    saldo_resultante_cup REAL NOT NULL,
+    concepto TEXT,
+    usuario_id INTEGER REFERENCES usuarios(id),
+    hash_sha256 TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_productos_sku ON productos(sku);
   CREATE INDEX IF NOT EXISTS idx_productos_codigo_barras ON productos(codigo_barras);
   CREATE INDEX IF NOT EXISTS idx_ventas_folio ON ventas(folio_ticket);
   CREATE INDEX IF NOT EXISTS idx_kardex_producto ON kardex_movimientos(producto_id);
+  CREATE INDEX IF NOT EXISTS idx_gaveta_mov_turno ON caja_gaveta_movimientos(turno_id);
 `);
+
+// Safe migration: reposiciones de efectivo sobre la gaveta del turno.
+const turnoCols = db.prepare('PRAGMA table_info(turnos_caja)').all() as Array<{ name: string }>;
+if (!turnoCols.some((c) => c.name === 'total_reposiciones_cup')) {
+  db.exec('ALTER TABLE turnos_caja ADD COLUMN total_reposiciones_cup REAL NOT NULL DEFAULT 0.0;');
+}
 
 // Safe migration: ensure estado_ciclo exists on caja_chica_vales for replenishment cycles
 const cajaChicaCols = db.prepare('PRAGMA table_info(caja_chica_vales)').all() as Array<{ name: string }>;
 if (!cajaChicaCols.some((c) => c.name === 'estado_ciclo')) {
   db.exec("ALTER TABLE caja_chica_vales ADD COLUMN estado_ciclo TEXT NOT NULL DEFAULT 'ACTIVO';");
+}
+
+// Safe migration: multi-fondos de caja chica
+const cajaChicaFondoCols = db.prepare('PRAGMA table_info(caja_chica_vales)').all() as Array<{ name: string }>;
+if (!cajaChicaFondoCols.some((c) => c.name === 'fondo_id')) {
+  db.exec('ALTER TABLE caja_chica_vales ADD COLUMN fondo_id INTEGER REFERENCES caja_chica_fondos(id);');
+}
+const cajaChicaArqueoCols = db.prepare('PRAGMA table_info(caja_chica_arqueos)').all() as Array<{ name: string }>;
+if (!cajaChicaArqueoCols.some((c) => c.name === 'fondo_id')) {
+  db.exec('ALTER TABLE caja_chica_arqueos ADD COLUMN fondo_id INTEGER REFERENCES caja_chica_fondos(id);');
 }
 
 // Safe migration: ensure end-of-day closing schedule columns exist on configuracion_negocio
@@ -509,13 +551,160 @@ function seedIfEmpty(): void {
 
 seedIfEmpty();
 
+// Fondo inicial de caja chica: garantiza al menos un fondo y adopta los
+// movimientos históricos que aún no tienen fondo asignado.
+(() => {
+  const count = db.prepare('SELECT COUNT(*) AS count FROM caja_chica_fondos').get() as { count: number };
+  if (Number(count?.count ?? 0) === 0) {
+    const cfg = db
+      .prepare('SELECT fondo_fijo_caja_chica, tope_vale_caja_chica FROM configuracion_negocio WHERE id = 1')
+      .get() as { fondo_fijo_caja_chica: number; tope_vale_caja_chica: number } | undefined;
+    db.prepare(`
+      INSERT INTO caja_chica_fondos (nombre, monto_asignado_cup, tope_vale_cup)
+      VALUES (?, ?, ?)
+    `).run(
+      'Fondo General',
+      Number(cfg?.fondo_fijo_caja_chica ?? 25000),
+      Number(cfg?.tope_vale_caja_chica ?? 5000)
+    );
+  }
+  const first = db.prepare('SELECT id FROM caja_chica_fondos ORDER BY id ASC LIMIT 1').get() as
+    | { id: number }
+    | undefined;
+  if (first) {
+    db.prepare('UPDATE caja_chica_vales SET fondo_id = ? WHERE fondo_id IS NULL').run(first.id);
+    db.prepare('UPDATE caja_chica_arqueos SET fondo_id = ? WHERE fondo_id IS NULL').run(first.id);
+  }
+})();
+
+export interface BackupFileInfo {
+  archivo: string;
+  tamano_bytes: number;
+  creado_en: string;
+}
+
+export function listSqliteBackups(): BackupFileInfo[] {
+  const backupDir = path.join(DATA_DIR, 'backups');
+  if (!fs.existsSync(backupDir)) return [];
+  return fs
+    .readdirSync(backupDir)
+    .filter((name) => name.toLowerCase().endsWith('.db'))
+    .map((name) => {
+      const stat = fs.statSync(path.join(backupDir, name));
+      return {
+        archivo: name,
+        tamano_bytes: stat.size,
+        creado_en: stat.mtime.toISOString(),
+      };
+    })
+    .sort((a, b) => b.creado_en.localeCompare(a.creado_en));
+}
+
+/**
+ * Restaura un respaldo sobre la base abierta sin reiniciar el servidor.
+ * Copia las tablas comunes dentro de una transacción y deja una copia de
+ * seguridad del estado previo en backups/.
+ */
+export function restoreSqliteBackup(archivo: string): { restaurado: string; copia_seguridad: string } {
+  const requested = String(archivo ?? '').trim();
+  const safeName = path.basename(requested);
+  if (!safeName || safeName !== requested || !safeName.toLowerCase().endsWith('.db')) {
+    throw new Error('Nombre de respaldo inválido.');
+  }
+
+  const backupDir = path.join(DATA_DIR, 'backups');
+  const fullPath = path.join(backupDir, safeName);
+  if (!fs.existsSync(fullPath)) {
+    throw new Error('El respaldo seleccionado no existe.');
+  }
+
+  const source = new DatabaseSync(fullPath, { readOnly: true });
+  try {
+    const integrity = source.prepare('PRAGMA integrity_check').get() as { integrity_check: string };
+    if (String(integrity?.integrity_check) !== 'ok') {
+      throw new Error('El archivo de respaldo está dañado (integrity_check falló).');
+    }
+    const hasConfig = source
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'configuracion_negocio'")
+      .get();
+    if (!hasConfig) {
+      throw new Error('El archivo no parece un respaldo de Gestor Tienda.');
+    }
+
+    fs.mkdirSync(backupDir, { recursive: true });
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+    const safetyName = `pre_restauracion_${stamp}.db`;
+    fs.copyFileSync(DB_PATH, path.join(backupDir, safetyName));
+
+    const sourceTables = source
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+      .all() as Array<{ name: string }>;
+
+    db.exec('PRAGMA foreign_keys = OFF;');
+    db.exec(`ATTACH DATABASE '${fullPath.replace(/'/g, "''")}' AS restore_src;`);
+    try {
+      db.exec('BEGIN IMMEDIATE;');
+      for (const table of sourceTables) {
+        const name = String(table.name);
+        const exists = db
+          .prepare("SELECT name FROM main.sqlite_master WHERE type = 'table' AND name = ?")
+          .get(name);
+        if (!exists) continue;
+
+        const mainCols = db
+          .prepare(`PRAGMA main.table_info('${name.replace(/'/g, "''")}')`)
+          .all() as Array<{ name: string }>;
+        const srcCols = source
+          .prepare(`PRAGMA main.table_info('${name.replace(/'/g, "''")}')`)
+          .all() as Array<{ name: string }>;
+        const srcNames = new Set(srcCols.map((c) => c.name));
+        const cols = mainCols.map((c) => c.name).filter((c) => srcNames.has(c));
+        if (cols.length === 0) continue;
+
+        const colList = cols.map((c) => `"${c.replace(/"/g, '""')}"`).join(', ');
+        db.exec(`DELETE FROM main."${name.replace(/"/g, '""')}";`);
+        db.exec(
+          `INSERT INTO main."${name.replace(/"/g, '""')}" (${colList}) ` +
+            `SELECT ${colList} FROM restore_src."${name.replace(/"/g, '""')}";`
+        );
+
+        const tableSql = source
+          .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+          .get(name) as { sql: string } | undefined;
+        if (tableSql && /AUTOINCREMENT/i.test(String(tableSql.sql)) && cols.includes('id')) {
+          db.prepare('DELETE FROM sqlite_sequence WHERE name = ?').run(name);
+          db.prepare(
+            `INSERT INTO sqlite_sequence (name, seq) SELECT ?, COALESCE(MAX(id), 0) FROM main."${name.replace(/"/g, '""')}"`
+          ).run(name);
+        }
+      }
+      db.exec('COMMIT;');
+    } catch (err) {
+      try {
+        db.exec('ROLLBACK;');
+      } catch {
+        // ignore rollback error
+      }
+      throw err;
+    } finally {
+      db.exec('DETACH DATABASE restore_src;');
+      db.exec('PRAGMA foreign_keys = ON;');
+    }
+
+    return { restaurado: safeName, copia_seguridad: path.join('backups', safetyName) };
+  } finally {
+    source.close();
+  }
+}
+
 export async function createSqliteBackup(): Promise<{ destFile: string; hashSha256: string }> {
   const backupDir = path.join(DATA_DIR, 'backups');
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
   db.exec('PRAGMA wal_checkpoint(PASSIVE);');
-  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   const fileName = `respaldo_manual_${stamp}.db`;
   const absDest = path.join(backupDir, fileName);
   await backup(db, absDest);

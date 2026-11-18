@@ -78,8 +78,6 @@ export const StockAlertMonitor: React.FC = () => {
 
   const isInventoryPage =
     typeof window !== 'undefined' && window.location.pathname.includes('inventario');
-  const isPrintableReportPage =
-    typeof window !== 'undefined' && window.location.pathname.includes('reporte-stock-bajo');
 
   const isFirstEvaluationRef = useRef<boolean>(true);
 
@@ -135,8 +133,6 @@ export const StockAlertMonitor: React.FC = () => {
 
   const evaluateProducts = useCallback(
     async (modeOverride?: ThresholdMode, fixedOverride?: number) => {
-      if (isPrintableReportPage) return;
-
       const activeMode = modeOverride ?? thresholdMode;
       const activeFixed = fixedOverride ?? fixedThreshold;
 
@@ -246,7 +242,6 @@ export const StockAlertMonitor: React.FC = () => {
       dispatchNativeBrowserNotification,
       fixedThreshold,
       isInventoryPage,
-      isPrintableReportPage,
       thresholdMode,
     ]
   );
@@ -341,7 +336,7 @@ export const StockAlertMonitor: React.FC = () => {
     }
   };
 
-  if (isPrintableReportPage || alerts.length === 0) {
+  if (alerts.length === 0) {
     return null;
   }
 
@@ -503,13 +498,6 @@ export const StockAlertMonitor: React.FC = () => {
             </button>
 
             <div className="flex items-center gap-2">
-              <a
-                className="h-8 px-3 rounded-xl bg-[#F8FAFF] border border-[#E8EEF7] hover:border-[#0E4BFF]/30 text-[#182034] font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
-                href="/reporte-stock-bajo"
-              >
-                <span className="material-symbols-outlined text-[15px]">print</span>
-                <span>Imprimir</span>
-              </a>
               <a
                 className="h-8 px-3.5 rounded-xl bg-[#0E4BFF] hover:bg-[#0A3FE0] text-white font-label-sm text-label-sm font-semibold inline-flex items-center gap-1 shadow-[0_6px_16px_-4px_rgba(14,75,255,0.45)] transition-colors whitespace-nowrap shrink-0"
                 href="/inventario"

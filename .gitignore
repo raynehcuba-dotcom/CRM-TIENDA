@@ -2,7 +2,14 @@ node_modules/
 dist/
 build/
 out/
+dist-electron/
+dist-win/
+backups/
 *.map
+*.db-wal
+*.db-shm
+*-wal
+*-shm
 *.dll
 *.exe
 *.so
